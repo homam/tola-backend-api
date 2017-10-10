@@ -1,0 +1,14 @@
+resolver: lts-9.6
+name: my-snapshot # For user display only
+packages:
+- location: .
+- location:
+    git: git@github.com:creichert/persistent-postgresql-json.git
+    commit: d12f92ff954b8041fe2a0116c4ae3a5eda991222
+  extra-dep: true
+- location:
+    git: git@github.com:eugenk/persistent.git
+    commit: 11dcd43ad089d9d07c8475899e7186a78500b311
+  extra-dep: true
+  subdirs:
+  - persistent
