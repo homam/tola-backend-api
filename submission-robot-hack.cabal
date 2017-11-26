@@ -1,8 +1,8 @@
-name:                sql-presistent
+name:                submission-robot-hack
 version:             0.1.0.0
 -- synopsis:
 -- description:
-homepage:            https://github.com/homam/sql-presistent#readme
+homepage:            https://github.com/homam/submission-robot-hack
 license:             BSD3
 license-file:        LICENSE
 author:              Homam
@@ -15,7 +15,8 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Lib, SeverityLevel, Dictionary, Helpers, PersonUserName, Web.AppState, Web.Model, Web.WebM, Web.Visit
+  exposed-modules:     Lib,  Helpers,  Web.AppState, Web.Model, Web.WebM, Web.Visit
+                     , Sam.Robot
   build-depends:       base >= 4.7 && < 5
                      , persistent >= 2.7.0
                      , monad-logger
@@ -28,7 +29,6 @@ library
                      , text
                      , transformers
                      , containers
-                     , time
                      , http-types >= 0.9 && < 1.0
                      , scotty >= 0.11
                      , wai >= 3.2 && < 4
@@ -36,23 +36,29 @@ library
                      , mtl
                      , resource-pool
                      , monad-control
+                     , utf8-string
+                     , base64-bytestring
+                     , time
+                     , http-client >= 0.5.7 && < 0.6
+                     , network-uri >= 2.6 && < 2.8
   default-language:    Haskell2010
   ghc-options:         -W -threaded -rtsopts -with-rtsopts=-N
 
-executable sql-presistent-exe
+executable submission-robot-hack-exe
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -W -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
-                     , sql-presistent
+                     , submission-robot-hack
   default-language:    Haskell2010
 
-test-suite sql-presistent-test
+test-suite submission-robot-hack-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
+  other-modules:     Web
   build-depends:       base
-                     , sql-presistent
+                     , submission-robot-hack
                      , hspec >= 2.4
                      , HUnit >= 1.5
                      , hspec-wai >= 0.6.3
@@ -79,4 +85,4 @@ test-suite sql-presistent-test
 
 source-repository head
   type:     git
-  location: https://github.com/homam/sql-presistent
+  location: https://github.com/homam/submission-robot-hack
