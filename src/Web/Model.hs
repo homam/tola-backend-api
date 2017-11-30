@@ -36,8 +36,7 @@ import qualified Network.URI as U
 import qualified Data.ByteString as BS
 import qualified Data.Text.Encoding as E
 import Control.Arrow
-import Data.Functor.Constant
-
+import qualified Database.Redis as R
 
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
@@ -76,9 +75,13 @@ doMigrationsWithPool pool = flip runSqlPersistMPool pool $
 
 runDb :: (MonadIO (t m), MonadReader AppState m, MonadTrans t) => ReaderT SqlBackend IO b -> t m b
 runDb query = do
-  pool <- lift $ asks getPool
-  -- liftIO (runSqlPool (runMigration migrateAll) pool)
-  liftIO (runSqlPool query pool)
+  run <- lift $ asks runSql
+  liftIO (run query)
+
+runRedisCommand :: (MonadIO (t m), MonadReader AppState m, MonadTrans t) => R.Redis b -> t m b
+runRedisCommand command = do
+  run <- lift $ asks runRedis
+  liftIO (run command)
 
 runApp :: (BaseBackend backend ~ SqlBackend, IsPersistBackend backend, MonadBaseControl IO m, MonadIO m) => ConnectionString -> (Pool backend -> IO a) -> m a
 runApp connStr app =
@@ -90,7 +93,12 @@ doMigrations :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => t m ()
 doMigrations = runDb (runMigration migrateAll)
 
 addMSISDNSubmission :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => Text -> Text -> Text -> Int -> Text -> Either (S.SubmissionError S.HttpException BS.ByteString) U.URI -> t m (Key MSISDNSubmission)
-addMSISDNSubmission domain country handle offer msisdn res = runDb (insert $ addValidationRes res $ MSISDNSubmission country handle domain offer msisdn)
+addMSISDNSubmission domain country handle offer msisdn res = do
+  let obj = addValidationRes res $ MSISDNSubmission country handle domain offer msisdn
+  runDb (insert obj)
+  -- sid <- runDb (insert obj)
+  -- runRedisCommand (R.setOpts (E.encodeUtf8 $ pack $ show $ fromIntegral $ fromSqlKey sid) (E.encodeUtf8 $ toJsonText (sid, obj) ) (R.SetOpts (Just 60) Nothing Nothing))
+  -- return sid
 
 addPINSubmission :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => Int -> Text -> Either (S.SubmissionError S.HttpException BS.ByteString) U.URI -> t m (Key PINSubmission)
 addPINSubmission msisdnSubmissionKey pin res = runDb (insert $ addValidationRes res $ PINSubmission (toSqlKey $ fromIntegral msisdnSubmissionKey) pin)
@@ -103,7 +111,3 @@ addValidationRes res f = f (const False ||| const True $ res) (Just . submission
   where
     submissionErrorToText (S.NetworkError e) = pack $ show e
     submissionErrorToText (S.ValidationError bs) = E.decodeUtf8 bs
-
-type Getting r s t a b = (a -> Constant r b) -> s -> Constant r t
-view :: s -> Getting a s t a b -> a
-view s l = getConstant (l Constant s)

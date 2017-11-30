@@ -38,17 +38,10 @@ resolver: lts-9.6
 packages:
 - location: .
 - location:
-    git: git@github.com:homam/persistent-postgresql-json.git
+    git: https://github.com/homam/persistent-postgresql-json
     commit: c714c6140aafd97ae9e1bdfe024792be164a3089
   extra-dep: true
-- location:
-    git: git@github.com:eugenk/persistent.git
-    commit: 11dcd43ad089d9d07c8475899e7186a78500b311
-  extra-dep: true
-  subdirs:
-  - persistent
-  - persistent-postgresql
-  - persistent-template
+
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:

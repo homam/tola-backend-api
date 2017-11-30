@@ -17,6 +17,7 @@ import           Test.Hspec.Wai
 import qualified Web.Scotty.Trans        as Trans
 import           Web.Visit
 import qualified Web.WebM                as W
+import qualified Database.Redis as R
 
 -- test utilities
 printSResponseHeaders (WT.SResponse s h b) = print h
@@ -35,7 +36,7 @@ getHeaderM name r = case getHeader name r of
 myApp :: W.WebMApp ()
 myApp = doMigrationsWeb >> msisdnSubmissionWeb >> pinSubmissionWeb
 
-withAppT app = with $ Trans.scottyAppT (W.runWebM "host=localhost dbname=test") app
+withAppT app = with $ Trans.scottyAppT (W.runWebM R.defaultConnectInfo "host=localhost dbname=test") app
 
 addSubmissionTest :: Text -> WaiSession Int
 addSubmissionTest url = do

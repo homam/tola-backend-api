@@ -21,11 +21,13 @@ import           Web.Scotty.Trans            (ActionT, ScottyError, ScottyT,
                                               addHeader, addroute, get, header,
                                               headers, json, options, param,
                                               params, post, redirect, request,
-                                              scottyT, status, text)
+                                              scottyT, status, text, middleware)
 import           Data.Monoid                 ((<>))
 import           Data.Pool                   ()
 import qualified Database.Persist.Postgresql as DB
 import           Web.Model
+import qualified Database.Redis as R
+import Network.Wai
 
 
 newtype WebM a = WebM { unWebM :: ReaderT AppState IO a }
@@ -44,26 +46,25 @@ getAndPostAndHead a b = get a b >> post a b >> shead a b
 addScotchHeader :: Monad m => TL.Text -> TL.Text -> ActionT e m ()
 addScotchHeader name = addHeader ("X-Scotch-" <> name)
 
-runWebM :: DB.ConnectionString -> WebM b -> IO b
-runWebM connStr = runApp connStr . runWeb'
-
-runWeb' :: WebM a -> DB.ConnectionPool -> IO a
-runWeb' a pool = do
-  let appState = AppState {
+runWeb :: R.Connection -> DB.ConnectionPool -> forall a. WebM a -> IO a
+runWeb redisConn pool = runActionToIO where
+  appState = AppState {
         echo = putStrLn . (unpack :: Text -> String)
-      , getPool = pool
+      , runRedis = R.runRedis redisConn
+      , runSql = (`DB.runSqlPool` pool)
     }
-  let runActionToIO m = runReaderT (unWebM m) appState
-  runActionToIO a
+  runActionToIO m = runReaderT (unWebM m) appState
 
-runWebServer :: Int -> DB.ConnectionString -> WebMApp b -> IO ()
-runWebServer port connStr = runApp connStr . runWebServer' port
+runWebM :: R.ConnectInfo -> DB.ConnectionString -> WebM b -> IO b
+runWebM redisConnInfo connStr a = do
+  redisConn <- R.checkedConnect redisConnInfo
+  runApp connStr (\pool -> runWeb redisConn pool a)
 
-runWebServer' :: Int -> WebMApp a -> DB.ConnectionPool -> IO ()
-runWebServer' port a pool = do
-  let appState = AppState {
-        echo = putStrLn . (unpack :: Text -> String)
-      , getPool = pool
-    }
-  let runActionToIO m = runReaderT (unWebM m) appState
-  scottyT port runActionToIO a
+addServerHeader :: Middleware
+addServerHeader =
+  modifyResponse (mapResponseHeaders (("Server", "Scotch") :))
+
+runWebServer :: Int -> R.ConnectInfo -> DB.ConnectionString -> WebMApp b -> IO ()
+runWebServer port redisConnInfo connStr a = do
+  redisConn <- R.checkedConnect redisConnInfo
+  runApp connStr (\pool -> scottyT port (runWeb redisConn pool) (middleware addServerHeader >> a))

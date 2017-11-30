@@ -41,6 +41,8 @@ library
                      , time
                      , http-client >= 0.5.7 && < 0.6
                      , network-uri >= 2.6 && < 2.8
+                     , hedis >= 0.9.9 && < 1.0.0
+                     , unordered-containers >= 0.2.8 && < 0.3
   default-language:    Haskell2010
   ghc-options:         -W -threaded -rtsopts -with-rtsopts=-N
 
@@ -80,6 +82,7 @@ test-suite submission-robot-hack-test
                      , wai-extra >= 3.0 && < 3.1
                      , mtl
                      , resource-pool
+                     , hedis >= 0.9.9 && < 1.0.0
   ghc-options:         -W -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 

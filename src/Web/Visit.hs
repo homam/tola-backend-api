@@ -20,6 +20,8 @@ import qualified Data.ByteString as BS
 import qualified Network.URI as U
 import Control.Arrow
 import qualified Data.Aeson           as A
+import qualified  Data.Aeson.Types as AT
+import qualified Data.HashMap.Strict as M
 import           GHC.Generics
 import qualified Data.Text.Encoding as E
 import Data.Monoid ((<>))
@@ -49,6 +51,11 @@ data SubmissionResult = SubmissionResult {
 instance A.ToJSON SubmissionResult
 instance A.FromJSON SubmissionResult
 
+data FinalResult = FinalResult { finalUrl :: Text, finalSubmissionResult :: SubmissionResult }
+instance A.ToJSON FinalResult where
+  toJSON (FinalResult u s) = if isValid s then AT.Object (M.insert "finalUrl" v o) else A.toJSON s where
+    AT.Object o = A.toJSON s
+    v           = A.toJSON u
 
 msisdnSubmissionWeb :: WebMApp ()
 msisdnSubmissionWeb =
@@ -76,5 +83,5 @@ pinSubmissionAction sid pin = do
       res <- liftIO $ S.runSubmission $ S.submitPIN (E.encodeUtf8 pin) url
       psid <- fromIntegral . fromSqlKey <$> addPINSubmission sid pin res
       addScotchHeader "SubmissionId" (TL.pack $ show psid)
-      json $ toSubmissionResult psid res
+      json FinalResult { finalUrl = "http://gr.mobiworldbiz.com/?uid=fdf098fcc6&uip=2.84.0.0", finalSubmissionResult = toSubmissionResult psid res }
     Nothing -> status status500 >> text ("No MSISDN Submission was Found for the Given sid: " <> TL.pack (show sid))

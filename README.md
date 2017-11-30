@@ -16,7 +16,7 @@ Run the test first, because it automatically creates the necessary SQL tables (`
 ## Usage:
 
 ```bash
-curl "http://localhost:3000/submit_msisdn/m.mobiworld.biz/gr/antivirus-kspr/1/?msisdn=6972865341"
+curl "http://localhost:3001/submit_msisdn/m.mobiworld.biz/gr/antivirus-kspr/1/?msisdn=6972865341"
 
 curl "http://localhost:3000/submit_pin/?sid=10&pin=9196"
 ```
@@ -32,7 +32,7 @@ Response is invalid if it contains "numeric-field msisdn msisdn-input msisdn-inp
 ----
 
 PIN Submission:
-http://m.mobiworld.biz/gr/antivirus-kspr?country=gr&handle=antivirus-kspr&offer=1&device=smart&gaclientid=&msisdnSubmitted=Y&msisdn%5B0%5D=6949041021&incentivizedCheckbox=Y&legalCheckbox=Y&op_confirmCheckbox=N&identified=1&operator=GR_VODAFONE&rid=a72467e1acfa4946a53b23f9ced89b41&pinSubmitted=Y&pin=3344
+http://m.mobiworld.biz/gr/antivirus-kspr?country=gr&handle=antivirus-kspr&offer=1&device=smart&gaclientid=&msisdnSubmitted=Y&msisdn%5B0%5D=6972865367&incentivizedCheckbox=Y&legalCheckbox=Y&op_confirmCheckbox=N&identified=1&operator=GR_VODAFONE&rid=243536df8b33478dab05d132c8f05766&pinSubmitted=Y&pin=7826
 
 Response is invalid if it contains "numeric-field pin pin-input"
 ```
