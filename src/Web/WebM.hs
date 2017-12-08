@@ -12,23 +12,25 @@ module Web.WebM (
 
 import           Control.Monad.Reader        (MonadIO, MonadReader)
 import           Control.Monad.Trans.Reader  (ReaderT (..), runReaderT)
+import           Data.Monoid                 ((<>))
+import           Data.Pool                   ()
 import           Data.Text
+import qualified Data.Text.Encoding          as E
 import qualified Data.Text.Lazy              as TL
+import qualified Database.Persist.Postgresql as DB
+import qualified Database.Redis              as R
 import           Network.HTTP.Types          (StdMethod (..))
+import qualified Network.Wai                 as W
 import           Web.AppState
+import           Web.Model
 import           Web.Scotty                  (RoutePattern)
 import           Web.Scotty.Trans            (ActionT, ScottyError, ScottyT,
                                               addHeader, addroute, get, header,
-                                              headers, json, options, param,
-                                              params, post, redirect, request,
-                                              scottyT, status, text, middleware)
-import           Data.Monoid                 ((<>))
-import           Data.Pool                   ()
-import qualified Database.Persist.Postgresql as DB
-import           Web.Model
-import qualified Database.Redis as R
-import Network.Wai
-
+                                              headers, json, middleware,
+                                              options, param, params, post,
+                                              redirect, request, scottyT,
+                                              status, text)
+import           Web.Utils.LogMiddleware     (logAllMiddleware)
 
 newtype WebM a = WebM { unWebM :: ReaderT AppState IO a }
   deriving (Applicative, Functor, Monad, MonadIO, MonadReader AppState)
@@ -39,6 +41,7 @@ type WebMApp a = ScottyT TL.Text WebM ()
 shead :: (ScottyError e, MonadIO m) => RoutePattern -> ActionT e m () -> ScottyT e m ()
 shead = addroute HEAD
 
+getAndHead, postAndHead, getAndPostAndHead :: (ScottyError e, MonadIO m) => RoutePattern -> ActionT e m () -> ScottyT e m ()
 getAndHead a b = get a b >> shead a b
 postAndHead a b = post a b >> shead a b
 getAndPostAndHead a b = get a b >> post a b >> shead a b
@@ -60,11 +63,11 @@ runWebM redisConnInfo connStr a = do
   redisConn <- R.checkedConnect redisConnInfo
   runApp connStr (\pool -> runWeb redisConn pool a)
 
-addServerHeader :: Middleware
+addServerHeader :: W.Middleware
 addServerHeader =
-  modifyResponse (mapResponseHeaders (("Server", "Scotch") :))
+  W.modifyResponse (W.mapResponseHeaders (("Server", "Scotch") :))
 
 runWebServer :: Int -> R.ConnectInfo -> DB.ConnectionString -> WebMApp b -> IO ()
 runWebServer port redisConnInfo connStr a = do
-  redisConn <- R.checkedConnect redisConnInfo
-  runApp connStr (\pool -> scottyT port (runWeb redisConn pool) (middleware addServerHeader >> a))
+  redisConn <- R.checkedConnect redisConnInfo
+  runApp connStr (\pool -> scottyT port (runWeb redisConn pool) (middleware logAllMiddleware >> middleware addServerHeader >> a))

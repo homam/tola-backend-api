@@ -57,8 +57,8 @@ submitPIN' pin url = callSAM $ (U.uriToString id $ makePINUrl pin url) ""
 makePINUrl :: BS.ByteString -> U.URI -> U.URI
 makePINUrl pin url = U.URI (U.uriScheme url) (U.uriAuthority url) (U.uriPath url) (queryString pin url) ""
   where
-    queryString pin url = T.unpack $ E.decodeUtf8 $ U.renderQuery True $ [("pinSubmitted", Just "Y"), ("pin", Just pin)] ++ keepRelevantParams url
-    keepRelevantParams url = filter ((`elem` [
+    queryString pin' url' = T.unpack $ E.decodeUtf8 $ U.renderQuery True $ [("pinSubmitted", Just "Y"), ("pin", Just pin')] ++ keepRelevantParams url'
+    keepRelevantParams url' = filter ((`elem` [
       "country",
       "handle",
       "offer",
@@ -71,14 +71,18 @@ makePINUrl pin url = U.URI (U.uriScheme url) (U.uriAuthority url) (U.uriPath url
       "msisdnSubmitted",
       "rid",
       "_extracted"
-      ]) . fst) $ U.parseQuery $ E.encodeUtf8 $ T.pack $ U.uriQuery url
+      ]) . fst) $ U.parseQuery $ E.encodeUtf8 $ T.pack $ U.uriQuery url'
 
+submitMSISDN :: String -> String -> String -> Int -> String -> X.ExceptT (SubmissionError C.HttpException BS.ByteString) IO U.URI
 submitMSISDN d h c o = (validateMSISDNSubmission =<<) . submitMSISDN' d h c o
+
+submitPIN :: BS.ByteString -> U.URI -> X.ExceptT (SubmissionError C.HttpException BS.ByteString) IO U.URI
 submitPIN p = (validatePINSubmission =<<) . submitPIN' p
 
 -- 6949041021
 -- 6949713057
 -- | for demonstration purpose only
+main :: IO ()
 main = do
   putStrLn "Hello!"
   finalResult <- X.runExceptT $ do

@@ -84,10 +84,10 @@ runRedisCommand command = do
   liftIO (run command)
 
 runApp :: (BaseBackend backend ~ SqlBackend, IsPersistBackend backend, MonadBaseControl IO m, MonadIO m) => ConnectionString -> (Pool backend -> IO a) -> m a
-runApp connStr app =
+runApp connStr appf =
   runNoLoggingT $
     withPostgresqlPool connStr 10 $
-    \pool -> liftIO $ app pool
+    \pool -> liftIO $ appf pool
 
 doMigrations :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => t m ()
 doMigrations = runDb (runMigration migrateAll)

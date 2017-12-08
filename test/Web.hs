@@ -11,13 +11,13 @@ import qualified Data.List               as List
 import           Data.Monoid             ((<>))
 import           Data.Text               (Text, pack)
 import qualified Data.Text.Encoding      as E
+import qualified Database.Redis          as R
 import qualified Network.Wai.Test        as WT
 import           Test.Hspec
 import           Test.Hspec.Wai
 import qualified Web.Scotty.Trans        as Trans
 import           Web.Visit
 import qualified Web.WebM                as W
-import qualified Database.Redis as R
 
 -- test utilities
 printSResponseHeaders (WT.SResponse s h b) = print h
