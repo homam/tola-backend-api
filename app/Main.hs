@@ -1,8 +1,8 @@
 module Main where
 
+import           Control.Monad      (join)
 import qualified Lib
 import qualified System.Environment as Env
-import Control.Monad (join)
 
 main :: IO ()
-main = join $ Lib.main <$> fmap read (Env.getEnv "port") <*> Env.getEnv "db"
+main = join $ Lib.main <$> fmap read (Env.getEnv "port") <*> Env.getEnv "jewel_connection_string" <*> Env.getEnv "db"

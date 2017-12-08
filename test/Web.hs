@@ -6,6 +6,7 @@ module Web (main)
 where
 
 import           Control.Concurrent.MVar
+import           Control.Monad           (void)
 import qualified Data.ByteString.Char8   as Char8
 import qualified Data.List               as List
 import           Data.Monoid             ((<>))
@@ -13,6 +14,7 @@ import           Data.Text               (Text, pack)
 import qualified Data.Text.Encoding      as E
 import qualified Database.Redis          as R
 import qualified Network.Wai.Test        as WT
+import qualified System.Environment      as Env
 import           Test.Hspec
 import           Test.Hspec.Wai
 import qualified Web.Scotty.Trans        as Trans
@@ -34,9 +36,19 @@ getHeaderM name r = case getHeader name r of
 -- WebMApp
 
 myApp :: W.WebMApp ()
-myApp = doMigrationsWeb >> msisdnSubmissionWeb >> pinSubmissionWeb
+myApp = doMigrationsWeb >> msisdnExistsWeb >> msisdnSubmissionWeb >> pinSubmissionWeb
 
-withAppT app = with $ Trans.scottyAppT (W.runWebM R.defaultConnectInfo "host=localhost dbname=test") app
+withAppT = with . Trans.scottyAppT (\a -> do
+  db <- liftIO $ Env.getEnv "db"
+  jewlDb <- liftIO $ Env.getEnv "jewel_connection_string"
+  W.runWebM R.defaultConnectInfo (Char8.pack jewlDb) (Char8.pack db) a)
+
+testRequest200 :: Text -> WaiSession WT.SResponse
+testRequest200 url = do
+  r <- get $ E.encodeUtf8 url
+  shouldRespondWith (return r) 200
+  liftIO $ printSResponseBody r
+  return r
 
 addSubmissionTest :: Text -> WaiSession Int
 addSubmissionTest url = do
@@ -52,6 +64,12 @@ addMSISDNSubmissionTest domain country handle offer msisdn =
 addPINSubmissionTest :: Int -> Text -> WaiSession Int
 addPINSubmissionTest sid pin =
   addSubmissionTest ("/submit_pin/?sid=" <> pack (show sid) <> "&pin=" <> pin)
+
+checkMSISDNTest :: Text -> Text -> WaiSession ()
+checkMSISDNTest country msisdn =
+  void $ testRequest200 ("/check_msisdn_active_subscription/" <> country <> "/?msisdn=" <> msisdn)
+
+
 
 --
 
@@ -77,10 +95,19 @@ testAddPINSubmission sync pin =
         sid' <- addPINSubmissionTest sid pin
         liftIO $ print sid'
 
+testCheckMSISDN country msisdn =
+  describe "Testing Check MSISDN"
+    $ withAppT myApp
+    $ it "must return Just"
+    $
+        checkMSISDNTest country msisdn
+
+
 main :: IO ()
 main = do
   sync <- newEmptyMVar
   hspec $ do
     testMigrations
+    testCheckMSISDN "GR" "6972865341"
     testAddMSISDNSubmission sync "6972865344"
     testAddPINSubmission sync "1234"

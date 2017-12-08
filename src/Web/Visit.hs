@@ -1,31 +1,34 @@
+{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables, DeriveGeneric #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Web.Visit(
     doMigrationsWeb
   , msisdnSubmissionWeb
   , pinSubmissionWeb
+  , msisdnExistsWeb
 )
 where
 
-import           Control.Monad        (join)
-import           Data.Text            (Text, unpack, pack)
-import qualified Data.Text.Lazy       as TL
+import           Control.Arrow
+import           Control.Monad             (join)
+import           Control.Monad.IO.Class    (liftIO)
+import qualified Data.Aeson                as A
+import qualified Data.Aeson.Types          as AT
+import qualified Data.ByteString           as BS
+import qualified Data.HashMap.Strict       as M
+import           Data.Monoid               ((<>))
+import           Data.Text                 (Text, pack, unpack)
+import qualified Data.Text.Encoding        as E
+import qualified Data.Text.Lazy            as TL
+import           GHC.Generics
+import           Network.HTTP.Types.Status (status500)
+import qualified Network.URI               as U
+import qualified Sam.Robot                 as S
+import qualified Web.JewlModel             as JM
 import           Web.Model
 import           Web.WebM
-import Control.Monad.IO.Class (liftIO)
-import qualified Sam.Robot as S
-import qualified Data.ByteString as BS
-import qualified Network.URI as U
-import Control.Arrow
-import qualified Data.Aeson           as A
-import qualified  Data.Aeson.Types as AT
-import qualified Data.HashMap.Strict as M
-import           GHC.Generics
-import qualified Data.Text.Encoding as E
-import Data.Monoid ((<>))
-import Network.HTTP.Types.Status (status500)
 
 doMigrationsWeb :: WebMApp ()
 doMigrationsWeb =
@@ -39,12 +42,12 @@ toSubmissionResult k res = SubmissionResult {
   , isValid = const False ||| const True $ res
   , errorText = Just . submissionErrorToText ||| const Nothing $ res
   } where
-    submissionErrorToText (S.NetworkError e) = pack $ show e
+    submissionErrorToText (S.NetworkError e)    = pack $ show e
     submissionErrorToText (S.ValidationError _) = "Validation Failed"
 
 data SubmissionResult = SubmissionResult {
-      isValid :: Bool
-    , errorText :: Maybe Text
+      isValid      :: Bool
+    , errorText    :: Maybe Text
     , submissionId :: Int
   } deriving (Eq, Ord, Show, Read, Generic)
 
@@ -85,3 +88,11 @@ pinSubmissionAction sid pin = do
       addScotchHeader "SubmissionId" (TL.pack $ show psid)
       json FinalResult { finalUrl = "http://gr.mobiworldbiz.com/?uid=fdf098fcc6&uip=2.84.0.0", finalSubmissionResult = toSubmissionResult psid res }
     Nothing -> status status500 >> text ("No MSISDN Submission was Found for the Given sid: " <> TL.pack (show sid))
+
+msisdnExistsWeb :: WebMApp ()
+msisdnExistsWeb =
+  getAndHead "/check_msisdn_active_subscription/:country/" $ do
+    msisdn' <- param "msisdn"
+    country' <- param "country"
+    res <- JM.runJewlDb $ JM.msisdnStatus country' msisdn'
+    json res

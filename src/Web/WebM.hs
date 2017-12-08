@@ -14,10 +14,14 @@ import           Control.Monad.Reader        (MonadIO, MonadReader)
 import           Control.Monad.Trans.Reader  (ReaderT (..), runReaderT)
 import           Data.Monoid                 ((<>))
 import           Data.Pool                   ()
+
+import qualified Data.Pool                   as P
+
 import           Data.Text
 import qualified Data.Text.Encoding          as E
 import qualified Data.Text.Lazy              as TL
 import qualified Database.Persist.Postgresql as DB
+import qualified Database.PostgreSQL.Simple  as PS
 import qualified Database.Redis              as R
 import           Network.HTTP.Types          (StdMethod (..))
 import qualified Network.Wai                 as W
@@ -49,25 +53,32 @@ getAndPostAndHead a b = get a b >> post a b >> shead a b
 addScotchHeader :: Monad m => TL.Text -> TL.Text -> ActionT e m ()
 addScotchHeader name = addHeader ("X-Scotch-" <> name)
 
-runWeb :: R.Connection -> DB.ConnectionPool -> forall a. WebM a -> IO a
-runWeb redisConn pool = runActionToIO where
+runWeb :: R.Connection -> P.Pool PS.Connection -> DB.ConnectionPool -> forall a. WebM a -> IO a
+runWeb redisConn jewlPool pool = runActionToIO where
   appState = AppState {
         echo = putStrLn . (unpack :: Text -> String)
       , runRedis = R.runRedis redisConn
       , runSql = (`DB.runSqlPool` pool)
+      , runJewl = P.withResource jewlPool
     }
   runActionToIO m = runReaderT (unWebM m) appState
 
-runWebM :: R.ConnectInfo -> DB.ConnectionString -> WebM b -> IO b
-runWebM redisConnInfo connStr a = do
+runWebM :: R.ConnectInfo -> DB.ConnectionString -> DB.ConnectionString -> WebM b -> IO b
+runWebM redisConnInfo jewlConnStr connStr a = do
   redisConn <- R.checkedConnect redisConnInfo
-  runApp connStr (\pool -> runWeb redisConn pool a)
+  jewlPool <- P.createPool (PS.connectPostgreSQL jewlConnStr) PS.close 1 10 10
+
+  runApp connStr (\pool -> runWeb redisConn jewlPool pool a)
+
 
 addServerHeader :: W.Middleware
 addServerHeader =
   W.modifyResponse (W.mapResponseHeaders (("Server", "Scotch") :))
 
-runWebServer :: Int -> R.ConnectInfo -> DB.ConnectionString -> WebMApp b -> IO ()
-runWebServer port redisConnInfo connStr a = do
+runWebServer :: Int -> R.ConnectInfo -> DB.ConnectionString -> DB.ConnectionString -> WebMApp b -> IO ()
+runWebServer port redisConnInfo jewlConnStr connStr a = do
   redisConn <- R.checkedConnect redisConnInfo
-  runApp connStr (\pool -> scottyT port (runWeb redisConn pool) (middleware logAllMiddleware >> middleware addServerHeader >> a))
+  jewlPool <- P.createPool (PS.connectPostgreSQL jewlConnStr) PS.close 1 10 10
+
+  runApp connStr (\pool -> scottyT port (runWeb redisConn jewlPool pool) (middleware logAllMiddleware >> middleware addServerHeader >> a))
+
