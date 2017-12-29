@@ -1,8 +1,8 @@
-name:                submission-robot-hack
+name:                tola-backend-api
 version:             0.1.0.0
 -- synopsis:
 -- description:
-homepage:            https://github.com/homam/submission-robot-hack
+homepage:            https://github.com/homam/tola-backend-api
 license:             BSD3
 license-file:        LICENSE
 author:              Homam
@@ -16,7 +16,15 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Lib,  Helpers
+                     , Tola.Imports
+                     , Tola.Common
+                     , Tola.LodgementRequest
+                     , Tola.DisbursementRequest
+                     , Tola.ChargeRequest
+                     , Tola.ChargeResponse
+                     , Tola.TolaInterface
                      , Web.JewlModel
+                     , Web.Localization
                      , Web.AppState, Web.Model, Web.WebM, Web.Visit
                      , Web.Utils.LogMiddleware
                      , Sam.Robot
@@ -50,24 +58,35 @@ library
                      , http-client-tls
                      , http-conduit
                      , postgresql-simple
+                     , uri-encode
+                     , AES >= 0.2.9 && < 0.3
+                     , cryptocipher
+                     , cryptonite
+                     , hspec >= 2.4
+                     , HUnit >= 1.5
+                     , hspec-wai >= 0.6.3
+                     , hspec-expectations >= 0.8 && < 0.9
+                     , Decimal >= 0.4 && <= 0.6
+                     , cryptohash >= 0.11 && < 0.12
+                     , base16-bytestring 
   default-language:    Haskell2010
   ghc-options:         -W -threaded -rtsopts -with-rtsopts=-N
 
-executable submission-robot-hack-exe
+executable tola-backend-api-exe
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -W -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
-                     , submission-robot-hack
+                     , tola-backend-api
   default-language:    Haskell2010
 
-test-suite submission-robot-hack-test
+test-suite tola-backend-api-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
   other-modules:     Web
   build-depends:       base
-                     , submission-robot-hack
+                     , tola-backend-api
                      , hspec >= 2.4
                      , HUnit >= 1.5
                      , hspec-wai >= 0.6.3
@@ -91,9 +110,10 @@ test-suite submission-robot-hack-test
                      , resource-pool
                      , hedis >= 0.9.9 && < 1.0.0
                      , postgresql-simple
+                     , hspec-expectations >= 0.8 && < 0.9
   ghc-options:         -W -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 
 source-repository head
   type:     git
-  location: https://github.com/homam/submission-robot-hack
+  location: https://github.com/homam/tola-backend-api

@@ -35,7 +35,7 @@ ENV port 3002
 RUN stack build
 RUN date >> /hello
 RUN cat /hello
-RUN curl --upload-file ./.stack-work/dist/x86_64-linux/Cabal-1.24.2.0/build/submission-robot-hack-exe/submission-robot-hack-exe "https://transfer.sh/submission-robot-hack-exe"
+RUN curl --upload-file ./.stack-work/dist/x86_64-linux/Cabal-1.24.2.0/build/tola-backend-api-exe/tola-backend-api-exe "https://transfer.sh/tola-backend-api-exe"
 
-# CMD ["stack","exec","submission-robot-hack-exe"]
+# CMD ["stack","exec","tola-backend-api-exe"]
 ```
