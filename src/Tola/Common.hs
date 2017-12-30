@@ -1,10 +1,11 @@
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE LambdaCase            #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
 
 
 module Tola.Common (
@@ -30,8 +31,8 @@ hashText :: Text -> Text
 hashText = E.decodeUtf8 . B16.encode . MD5.hash . E.encodeUtf8
 
 -- | To Tola MAC
-toMAC :: Secret -> Msisdn -> UTCTime -> Text
-toMAC s m d = hashText $ T.intercalate ":" [(unMsisdn m), pack (encodeTime d), (unSecret s)] where
+toMAC :: Secret -> Msisdn -> UTCTime -> Mac
+toMAC s m d = mkMac $ hashText $ T.intercalate ":" [(unMsisdn m), pack (encodeTime d), (unSecret s)] where
   encodeTime = formatTime defaultTimeLocale "%FT%T%QZ"
 
 newtype Secret = Secret { unSecret :: Text } deriving (Show, Generic)
@@ -68,6 +69,7 @@ newtype Amount = Amount { unAmount :: Rational } deriving (Show, Generic)
 mkAmount :: Rational -> Amount
 mkAmount = Amount
 
+-- | Tola passes Amount as String in JSON
 instance PersistField Amount where
    toPersistValue = PersistDouble . fromRational . unAmount
    fromPersistValue (PersistDouble c) = Right . Amount . toRational $ c
@@ -86,46 +88,47 @@ instance A.FromJSON Amount where
     parseAmount o             = AT.typeMismatch "Number or String" o
 
 
--- | Wraps MSISDN in a newtype
-newtype Msisdn = Msisdn { unMsisdn :: Text } deriving (Show, Read, Generic)
+-- | Wraps Msisdn in a newtype
+newtype Msisdn = Msisdn { unMsisdn :: Text }
+    deriving (Show, Read, Eq, Ord, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
 
 mkMsisdn :: Text -> Msisdn
 mkMsisdn = Msisdn
 
-instance PersistField Msisdn where
-   toPersistValue = PersistText . unMsisdn
-   fromPersistValue (PersistText c) = Right . Msisdn $ c
-   fromPersistValue x = Left $ pack $ "Expected Text, got: " ++ show x
-
-instance PersistFieldSql Msisdn where
-  sqlType _ = SqlString
-
-instance A.ToJSON Msisdn where
-  toJSON = A.toJSON . unMsisdn
-
-instance A.FromJSON Msisdn where
-  parseJSON = fmap Msisdn . AT.parseJSON
-
 -- | Wraps Source Reference in a newtype
-newtype SourceReference = SourceReference { unSourceReference :: Text } deriving (Show, Read, Generic)
+newtype SourceReference = SourceReference { unSourceReference :: Text }
+  deriving (Show, Read, Eq, Ord, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
 
 mkSourceReference :: Text -> SourceReference
 mkSourceReference = SourceReference
 
-instance PersistField SourceReference where
-   toPersistValue = PersistText . unSourceReference
-   fromPersistValue (PersistText c) = Right . SourceReference $ c
-   fromPersistValue x = Left $ pack $ "Expected Text, got: " ++ show x
+-- | Wraps Customer Reference in a newtype
+newtype CustomerReference = CustomerReference { unCustomerReference :: Text }
+  deriving (Show, Read, Eq, Ord, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
 
-instance PersistFieldSql SourceReference where
-  sqlType _ = SqlString
+mkCustomerReference :: Text -> CustomerReference
+mkCustomerReference = CustomerReference
 
-instance A.ToJSON SourceReference where
-  toJSON = A.toJSON . unSourceReference
+-- | Wraps Operator Reference in a newtype
+newtype OperatorReference = OperatorReference { unOperatorReference :: Text }
+  deriving (Show, Read, Eq, Ord, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
 
-instance A.FromJSON SourceReference where
-  parseJSON = fmap SourceReference . AT.parseJSON
+mkOperatorReference :: Text -> OperatorReference
+mkOperatorReference = OperatorReference
 
+-- | Wraps Target in a newtype
+newtype Target = Target { unTarget :: Text }
+  deriving (Show, Read, Eq, Ord, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
+
+mkTarget :: Text -> Target
+mkTarget = Target
+
+-- | Wraps Mac in a newtype
+newtype Mac = Mac { unMac :: Text }
+  deriving (Show, Read, Eq, Ord, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
+
+mkMac :: Text -> Mac
+mkMac = Mac
 
 -- | The standard reponse from our server to Tola requests
 data SuccessResponse = SuccessResponse { success :: Bool } deriving (Show, Read, Generic)

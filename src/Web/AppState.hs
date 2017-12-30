@@ -12,9 +12,9 @@ import qualified Database.Redis              as R
 import qualified Tola.TolaInterface          as Tola
 
 data AppState = AppState {
-    echo          :: Text -> IO ()
-  , runRedis      :: forall a. R.Redis a -> IO a
-  , runSql        :: forall b. ReaderT DB.SqlBackend IO b -> IO b
-  , runJewl       :: forall b. (PS.Connection -> IO b) -> IO b
-  , tolaInterface :: Tola.TolaInterface
+    echo     :: Text -> IO ()
+  , runRedis :: forall a. R.Redis a -> IO a
+  , runSql   :: forall b. ReaderT DB.SqlBackend IO b -> IO b
+  , runJewl  :: forall b. (PS.Connection -> IO b) -> IO b
+  , tolaApi  :: Tola.TolaApi
 }

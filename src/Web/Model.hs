@@ -42,10 +42,12 @@ import qualified Data.Time.Clock.POSIX       as POSIX
 import qualified Database.Redis              as R
 import qualified Network.URI                 as U
 import qualified Sam.Robot                   as S
+import qualified Tola.ChargeNotification     as TChargeNotification
 import qualified Tola.ChargeRequest          as TChargeRequest
+import qualified Tola.ChargeResponse         as TChargeResponse
 import           Tola.Common
 import           Tola.LodgementRequest
-import           Tola.TolaInterface          (TolaInterface)
+import           Tola.TolaInterface          (TolaApi)
 
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
@@ -85,14 +87,27 @@ DBLodgementRequest sql=lodgement_requests json
 DBChargeNotification sql=charge_notification json
   Id
   creationTime Time.UTCTime default=now() MigrationOnly
+  successful Bool
+  errorMessage Text Maybe
+  amount Amount sqltype=numeric(14,5)
+  msisdn Msisdn
+  customerReference CustomerReference
+  operatorReference OperatorReference
+  sourceReference SourceReference
+  rawNotification Text Maybe sqltype=json
+
 
 DBChargeRequest sql=charge_request json
   Id
   creationTime Time.UTCTime default=now() MigrationOnly
+  chargeNotificationId DBChargeNotificationId Maybe
   amount Amount sqltype=numeric(14,5)
   msisdn Msisdn
-  state TChargeRequest.ChargeRequestState
-  reference Text Maybe
+  state TChargeRequest.ChargeRequestState sqltype=chargerequeststate
+  reference SourceReference Maybe
+  responseErrorCode Int Maybe
+  responseErrorMessage Text Maybe
+  rawResponse Text Maybe sqltype=json
 |]
 
 newtype AppStateM a = AppStateM {
@@ -103,6 +118,9 @@ newSubmissionId
   :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => t m Int
 newSubmissionId =
   liftIO (round . (*1000000) . fromRational . toRational <$> POSIX.getPOSIXTime)
+
+toSqlJSON :: A.ToJSON a => a -> Text
+toSqlJSON = E.decodeUtf8 . BL.toStrict . A.encode
 
 doMigrationsWithPool :: Pool SqlBackend -> IO ()
 doMigrationsWithPool pool = flip runSqlPersistMPool pool $
@@ -127,7 +145,8 @@ runApp connStr appf =
 doMigrations :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => t m ()
 doMigrations = runDb (runMigration migrateAll)
 
-addMSISDNSubmission :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => Text -> Text -> Text -> Int -> Text -> Either (S.SubmissionError S.HttpException BS.ByteString) U.URI -> t m (Key MSISDNSubmission)
+addMSISDNSubmission :: (MonadTrans t, MonadReader AppState m, MonadIO (t m))
+  => Text -> Text -> Text -> Int -> Text -> Either (S.SubmissionError S.HttpException BS.ByteString) U.URI -> t m (Key MSISDNSubmission)
 addMSISDNSubmission domain country handle offer msisdn res = do
   submissionId <- newSubmissionId
   let obj = addValidationRes res $ MSISDNSubmission (Just submissionId) country handle domain offer msisdn
@@ -151,16 +170,59 @@ addValidationRes res f = f (const False ||| const True $ res) (Just . submission
     submissionErrorToText (S.ValidationError bs) = E.decodeUtf8 bs
 
 addTolaRequest :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => LodgementRequest -> t m (Key DBLodgementRequest)
-addTolaRequest req = runDb (insert $ DBLodgementRequest (amount req) (msisdn req) (date req) (E.decodeUtf8 $ BL.toStrict $ A.encode req))
+addTolaRequest req = runDb (insert $ DBLodgementRequest (amount req) (msisdn req) (date req) (toSqlJSON req))
 
 addChargeRequest :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => Amount -> Msisdn -> t m (Key DBChargeRequest)
-addChargeRequest a m = runDb (insert $ DBChargeRequest a m TChargeRequest.ChargeRequestCreated Nothing)
+addChargeRequest a m = runDb (insert $ DBChargeRequest Nothing a m TChargeRequest.ChargeRequestCreated Nothing Nothing Nothing Nothing)
 
-updateChargeRequest = ()
+updateChargeRequestWithResponse :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => Key DBChargeRequest -> TChargeResponse.ChargeResponse -> t m ()
+updateChargeRequestWithResponse chargeRequestId  = runDb . update chargeRequestId . fields where
+  fields (TChargeResponse.SuccessChargeResponse ref) =
+    [ DBChargeRequestState =. TChargeRequest.SuccessChargeResponseReceived
+    , DBChargeRequestReference =. Just ref
+    ]
+  fields (TChargeResponse.FailureChargeResponse c m) =
+    [ DBChargeRequestState =. TChargeRequest.FailChargeResponseReceived
+    , DBChargeRequestResponseErrorCode =. Just c
+    , DBChargeRequestResponseErrorMessage =. Just m
+    ]
+
+insertChargeNotificationAndupdateChargeRequest :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) =>
+  TChargeNotification.ChargeNotification -> t m (Key DBChargeNotification)
+insertChargeNotificationAndupdateChargeRequest n =
+  runDb $ do
+    notificationId <- insert $ fromChargeNotification n
+    updateWhere
+      [DBChargeRequestReference ==. Just (TChargeNotification.sourcereference d)]
+      [
+          DBChargeRequestChargeNotificationId =. Just notificationId
+        , DBChargeRequestState =. status n
+      ]
+    return notificationId
+    where
+      fromChargeNotification (TChargeNotification.SuccessChargeNotification _) = mkDBChargeNotification True Nothing
+      fromChargeNotification (TChargeNotification.FailureChargeNotification e _) = mkDBChargeNotification False (Just e)
+
+      status (TChargeNotification.SuccessChargeNotification _) = TChargeRequest.SuccessChargeNotificationReceived
+      status (TChargeNotification.FailureChargeNotification e _) = TChargeRequest.FailChargeNotificationReceived
+
+      mkDBChargeNotification success errorText =
+        DBChargeNotification
+          success
+          errorText
+          (TChargeNotification.amount d)
+          (TChargeNotification.msisdn d)
+          (TChargeNotification.customerreference d)
+          (TChargeNotification.operatorreference d)
+          (TChargeNotification.sourcereference d)
+          (Just $ toSqlJSON d)
+      d = TChargeNotification.details n
+
+
 
 --
 
-runTola :: (MonadReader AppState m, Monad (t m), MonadTrans t) => (TolaInterface -> t m b) -> t m b
+runTola :: (MonadIO (t m), MonadReader AppState m, MonadTrans t) => (TolaApi -> IO b) -> t m b
 runTola f = do
-  ti <- lift $ asks tolaInterface
-  f ti
+  ti <- lift $ asks tolaApi
+  liftIO (f ti)

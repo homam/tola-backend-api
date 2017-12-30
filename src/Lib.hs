@@ -26,6 +26,6 @@ main port jewlDb db = W.runWebServer port
                                      R.defaultConnectInfo
                                      (E.encodeUtf8 $ T.pack jewlDb)
                                      (E.encodeUtf8 $ T.pack db)
-                                     Tola.realTolaInterface
+                                     Tola.realTolaApi
                                      myApp
 

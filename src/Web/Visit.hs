@@ -32,6 +32,7 @@ import           Network.HTTP.Types.Status (status500)
 import qualified Network.URI               as U
 import           Numeric                   (readHex, showHex)
 import qualified Sam.Robot                 as S
+import qualified Tola.ChargeNotification   as Tola
 import qualified Tola.ChargeRequest        as TChargeRequest
 import qualified Tola.Common               as Tola
 import qualified Tola.LodgementRequest     as Tola
@@ -41,10 +42,6 @@ import           Web.Localization          (decrypt', encrypt, encrypt',
                                             toLocalMSISDN)
 import           Web.Model
 import           Web.WebM
---
-import           Control.Monad.Reader      (asks)
-import           Control.Monad.Trans.Class (lift)
-import           Web.AppState
 
 
 doMigrationsWeb :: WebMApp ()
@@ -135,14 +132,23 @@ chargeRequestWeb = getAndHead "/api/charge/:msisdn/:amount" $ do
   amount' <- Tola.mkAmount . (toRational :: Double -> Rational) <$> param "amount"
   msisdn' <- Tola.mkMsisdn <$> param "msisdn"
   now <- liftIO Clock.getCurrentTime
-  crid <- fromIntegral . fromSqlKey <$> addChargeRequest amount' msisdn'
-  let target = "800000"
+  cridKey <- addChargeRequest amount' msisdn'
+  let crid = fromIntegral . fromSqlKey $ cridKey
+  addScotchHeader "ChargeRequestId" (TL.pack $ show crid)
+  let target = Tola.mkTarget "800000"
   let cr = TChargeRequest.mkChargeRequest (Tola.mkSecret "secret") target amount' msisdn' now (Tola.mkSourceReference $ pack $ show crid)
-  ti <- lift $ asks tolaInterface
-  resp <- liftIO $ (TolaInterface.makeChargeRequest ti cr)
-  json resp
+  resp <- runTola (`TolaInterface.makeChargeRequest` cr)
+  updateChargeRequestWithResponse cridKey resp
+  json resp --TODO: add crid to JSON response
 
 chargeNotificationWeb :: WebMApp ()
-chargeNotificationWeb = getAndHead "/tola/charge_notification/:hello" $
-  text =<< param "hello"
+chargeNotificationWeb =
+  postAndHead "/tola/charge_notification/" $ do
+    mcn :: Maybe Tola.ChargeNotification <- fmap A.decode body
+    case mcn of
+      Nothing -> status status500 >> json (Tola.mkSuccessResponse False)
+      Just cn -> do
+        cnid <- fromIntegral . fromSqlKey <$> insertChargeNotificationAndupdateChargeRequest cn
+        addScotchHeader "ChargeNotificationId" (TL.pack $ show cnid)
+        json $ Tola.mkSuccessResponse True
 

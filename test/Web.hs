@@ -22,7 +22,7 @@ import qualified System.Environment      as Env
 import           Test.Hspec
 import           Test.Hspec.Expectations
 import           Test.Hspec.Wai
-import qualified Tola.Common             as Tola
+import           Tola.Common
 import qualified Web.JewlModel           as JM
 import           Web.Localization        (decrypt')
 import qualified Web.Scotty.Trans        as Trans
@@ -30,9 +30,12 @@ import           Web.Visit
 import qualified Web.WebM                as W
 --
 import           Control.Concurrent
+import           Data.Time.Clock         (getCurrentTime)
+import qualified Tola.ChargeNotification as TChargeNotification
 import qualified Tola.ChargeRequest      as TChargeRequest
 import qualified Tola.ChargeResponse     as TChargeResponse
 import qualified Tola.TolaInterface      as TolaInterface
+import           Web.Localization        (getTime, toHex)
 
 -- test utilities
 printSResponseHeaders (WT.SResponse s h b) = print h
@@ -58,11 +61,11 @@ myApp =
 
 
 
-withAppT :: W.ScottyT e W.WebM () -> SpecWith Application -> Spec
-withAppT = with . Trans.scottyAppT (\a -> do
+withAppT :: TolaInterface.TolaApi -> W.ScottyT e W.WebM () -> SpecWith Application -> Spec
+withAppT mockApi = with . Trans.scottyAppT (\a -> do
   db <- liftIO $ Env.getEnv "db"
   jewlDb <- liftIO $ Env.getEnv "jewel_connection_string"
-  W.runWebM R.defaultConnectInfo (Char8.pack jewlDb) (Char8.pack db) mockedTolaInterface a)
+  W.runWebM R.defaultConnectInfo (Char8.pack jewlDb) (Char8.pack db) mockApi a)
 
 test200
   :: Text -> (Char8.ByteString -> WaiSession WT.SResponse) -> WaiSession WT.SResponse
@@ -75,43 +78,8 @@ test200 url f = do
 testPost200 :: Text -> BL.ByteString -> WaiSession WT.SResponse
 testPost200 url body = test200 url (`post` body)
 
-testRequest200 :: Text -> WaiSession WT.SResponse
-testRequest200 url = test200 url get
-
-addSubmissionTest :: Text -> WaiSession Text
-addSubmissionTest url = do
-  r <- get $ E.encodeUtf8 url
-  shouldRespondWith (return r) 200
-  liftIO $ printSResponseBody r
-
-  let r' = getResponseBody r
-  case (A.decode r' :: Maybe SubmissionResult) of
-    Nothing -> do
-        liftIO $ expectationFailure $ "Unable to parse the response from check_msisdn_active_subscription \n" <> show r
-        return "ERROR"
-    Just s -> do
-      let hsid = submissionId s
-      let msid = decrypt' $ Char8.pack $ unpack hsid
-      liftIO $
-        putStrLn $ "submissionId: " <> show msid <> ", " <> unpack hsid
-      return hsid
-
-
-addMSISDNSubmissionTest :: Text -> Text -> Text -> Int -> Text -> WaiSession Text
-addMSISDNSubmissionTest domain country handle offer msisdn =
-  addSubmissionTest ("/submit_msisdn/" <> domain <> "/" <> country <> "/" <> handle <> "/" <> pack (show offer) <> "/?msisdn=" <> msisdn)
-
-addPINSubmissionTest :: Text -> Text -> WaiSession Text
-addPINSubmissionTest sid pin =
-  addSubmissionTest ("/submit_pin/?sid=" <> sid <> "&pin=" <> pin)
-
-checkMSISDNTest :: Text -> Text -> WaiSession ()
-checkMSISDNTest country msisdn = do
-  r <- getResponseBody <$> testRequest200 ("/check_msisdn_active_subscription/" <> country <> "/?msisdn=" <> msisdn)
-  maybe
-    (liftIO $ expectationFailure $ "Unable to parse the response from check_msisdn_active_subscription \n" <> show r)
-    (const $ return ())
-    (A.decode r :: Maybe JM.FinalResult)
+testGet200 :: Text -> WaiSession WT.SResponse
+testGet200 url = test200 url get
 
 addLodgementRequestTest :: WaiSession ()
 addLodgementRequestTest = do
@@ -119,91 +87,157 @@ addLodgementRequestTest = do
   maybe
     (liftIO $ expectationFailure $ "Unable to parse the response from check_msisdn_active_subscription \n" <> show r)
     (const $ return ())
-    (A.decode r :: Maybe Tola.SuccessResponse)
+    (A.decode r :: Maybe SuccessResponse)
 
 
 addChargeRequestTest :: WaiSession ()
 addChargeRequestTest = do
-  r <- getResponseBody <$> testRequest200
+  r <- getResponseBody <$> testGet200
     "/api/charge/300000001/25.6"
   return ()
 
 --
 
-testMigrations =
-  describe "Testing Migrations" $
-    withAppT myApp $
-      it "must Migrate Database Schema" $
-        get "/do_migrations" `shouldRespondWith` 200
+testMigrations appSpec =
+  describe "Testing Migrations"
+    $ appSpec
+    $ it "must Migrate Database Schema"
+    $ get "/do_migrations" `shouldRespondWith` 200
 
-testAddMSISDNSubmission sync msisdn =
-  describe "Testing Adding A MSISDN Submission" $
-    withAppT myApp $
-      it "must add a new MSISDN Submission" $ do
-        sid <- addMSISDNSubmissionTest "m.mobiworld.biz" "gr" "antivirus-kspr" 1 msisdn
-        liftIO $ print sid
-        liftIO $ putMVar sync sid
+{-
 
-testAddPINSubmission sync pin =
-  describe "Testing Adding A PIN Submission" $
-    withAppT myApp $
-      it "must add a new PIN Submission" $ do
-        sid <- liftIO $ readMVar sync
-        sid' <- addPINSubmissionTest sid pin
-        liftIO $ print sid'
+  addSubmissionTest :: Text -> WaiSession Text
+  addSubmissionTest url = do
+    r <- get $ E.encodeUtf8 url
+    shouldRespondWith (return r) 200
+    liftIO $ printSResponseBody r
 
-testCheckMSISDN country msisdn =
-  describe "Testing Check MSISDN"
-    $ withAppT myApp
-    $ it "must return a valid FinalResult JSON object"
-    $ checkMSISDNTest country msisdn
+    let r' = getResponseBody r
+    case (A.decode r' :: Maybe SubmissionResult) of
+      Nothing -> do
+          liftIO $ expectationFailure $ "Unable to parse the response from check_msisdn_active_subscription \n" <> show r
+          return "ERROR"
+      Just s -> do
+        let hsid = submissionId s
+        let msid = decrypt' $ Char8.pack $ unpack hsid
+        liftIO $
+          putStrLn $ "submissionId: " <> show msid <> ", " <> unpack hsid
+        return hsid
 
-testAddLodgementRequest =
+
+  addMSISDNSubmissionTest :: Text -> Text -> Text -> Int -> Text -> WaiSession Text
+  addMSISDNSubmissionTest domain country handle offer msisdn =
+    addSubmissionTest ("/submit_msisdn/" <> domain <> "/" <> country <> "/" <> handle <> "/" <> pack (show offer) <> "/?msisdn=" <> msisdn)
+
+  addPINSubmissionTest :: Text -> Text -> WaiSession Text
+  addPINSubmissionTest sid pin =
+    addSubmissionTest ("/submit_pin/?sid=" <> sid <> "&pin=" <> pin)
+
+  checkMSISDNTest :: Text -> Text -> WaiSession ()
+  checkMSISDNTest country msisdn = do
+    r <- getResponseBody <$> testGet200 ("/check_msisdn_active_subscription/" <> country <> "/?msisdn=" <> msisdn)
+    maybe
+      (liftIO $ expectationFailure $ "Unable to parse the response from check_msisdn_active_subscription \n" <> show r)
+      (const $ return ())
+      (A.decode r :: Maybe JM.FinalResult)
+
+
+  testAddMSISDNSubmission sync msisdn =
+    describe "Testing Adding A MSISDN Submission" $
+      withAppT myApp $
+        it "must add a new MSISDN Submission" $ do
+          sid <- addMSISDNSubmissionTest "m.mobiworld.biz" "gr" "antivirus-kspr" 1 msisdn
+          liftIO $ print sid
+          liftIO $ putMVar sync sid
+
+  testAddPINSubmission sync pin =
+    describe "Testing Adding A PIN Submission" $
+      withAppT myApp $
+        it "must add a new PIN Submission" $ do
+          sid <- liftIO $ readMVar sync
+          sid' <- addPINSubmissionTest sid pin
+          liftIO $ print sid'
+
+  testCheckMSISDN country msisdn =
+    describe "Testing Check MSISDN"
+      $ withAppT myApp
+      $ it "must return a valid FinalResult JSON object"
+      $ checkMSISDNTest country msisdn
+-}
+
+testAddLodgementRequest appSpec =
   describe "Testing Add Lodgement Request"
-    $ withAppT myApp
+    $ appSpec
     $ it "must return '{ success: true }' JSON"
     $ addLodgementRequestTest
 
-testAddChargeRequest =
+testAddChargeRequest appSpec =
   describe "Testing Add Charge Request"
-    $ withAppT myApp
+    $ appSpec
     $ it "must return '{ success: true }' JSON"
     $ addChargeRequestTest
 
-testAddChargeNotification sourceref =
+testAddChargeNotification appSpec notification =
   describe "Testing Add Charge Notification"
-    $ withAppT myApp
+    $ appSpec
     $ it "must return hello_world"
     $ do
-      r <- getResponseBody <$> testRequest200
-        ("/tola/charge_notification/" <> Tola.unSourceReference sourceref)
+      r <- getResponseBody <$> testPost200 "/tola/charge_notification/" (A.encode notification)
       return ()
 
 
+testChargeRequestAndNotification :: TolaInterface.TolaApi -> IO ()
+testChargeRequestAndNotification mockApi = do
+  sync <- newEmptyMVar
+  sourceRef <- mkSourceReference . pack . toHex <$> getTime 1000000
+  let
+    -- | Mocked Tola API
+    mockApi' :: TolaInterface.TolaApi
+    mockApi' = mockApi {
+      TolaInterface.makeChargeRequest = \req -> do
+        _ <- forkIO $ do
+          threadDelay 10000 -- artificial delay to simulate async callback
+          now <- getCurrentTime
+          let notification = TChargeNotification.mkSuccessChargeNotification $ TChargeNotification.fromChargeRequest
+                (mkSecret "secret")
+                sourceRef
+                (mkOperatorReference "operator.ref")
+                (mkCustomerReference "custoemr.ref")
+                now
+                req
+          -- Send notification callback back to our server
+          hspec $ testAddChargeNotification appSpec notification
+          putMVar sync ()
 
---
-mockedTolaInterface :: TolaInterface.TolaInterface
-mockedTolaInterface = TolaInterface.TolaInterface
-  { TolaInterface.makeChargeRequest = \req -> do
-    forkIO $ do
-      threadDelay 100
-      putStrLn "forkIO testChargeNotification"
-      hspec $ testAddChargeNotification (TChargeRequest.sourcereference req)
-    return $ TChargeResponse.mkSuccessChargeResponse "some.reference"
-  }
+        return $ TChargeResponse.mkSuccessChargeResponse sourceRef
+      }
 
+    appSpec :: SpecWith Application -> Spec
+    appSpec = withAppT mockApi' myApp
 
---
+  hspec $ testAddChargeRequest appSpec -- charge request by client
+  takeMVar sync -- wait for charge notification callback to complete
 
 main :: IO ()
 main = do
-  sync <- newEmptyMVar
+  let
+    -- | Mocked Tola API
+    mockApi :: TolaInterface.TolaApi
+    mockApi = TolaInterface.TolaApi {
+      TolaInterface.makeChargeRequest = error "Not implemented"
+    }
+
+    appSpec :: SpecWith Application -> Spec
+    appSpec = withAppT mockApi myApp
+
   hspec $ do
-    testMigrations
-    testAddChargeRequest
-  threadDelay 1000
+    testMigrations appSpec
+    testAddLodgementRequest appSpec
+
+  testChargeRequestAndNotification mockApi
+
+
   -- forkIO $ (hspec testAddLodgementRequest) >> putMVar sync ()
-  -- takeMVar sync
 
     -- testCheckMSISDN "GR" "6972865341"
     -- testAddMSISDNSubmission sync "306972865341"

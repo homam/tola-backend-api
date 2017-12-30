@@ -23,8 +23,8 @@ data ChargeRequest = ChargeRequest {
   , sourcereference :: SourceReference
   , msisdn          :: Msisdn
   , requestType     :: Text
-  , target          :: Text
-  , mac             :: Text
+  , target          :: Target
+  , mac             :: Mac
   , date            :: UTCTime
 } deriving (Show, Generic)
 
@@ -38,7 +38,7 @@ instance A.FromJSON ChargeRequest where parseJSON = parseTolaJSON
 -- @
 mkChargeRequest
   ::    Secret
-     -> Text
+     -> Target
      -> Amount
      -> Msisdn
      -> UTCTime

@@ -16,11 +16,11 @@ data DisbursementRequest = DisbursementRequest {
   , amounttype      :: Text
   , channel         :: Text
   , currency        :: Text
-  , sourcereference :: Text
+  , sourcereference :: SourceReference
   , msisdn          :: Msisdn
   , requestType     :: Text
-  , target          :: Text
-  , mac             :: Text
+  , target          :: Target
+  , mac             :: Mac
   , date            :: UTCTime
 } deriving (Show, Generic)
 
@@ -28,22 +28,20 @@ instance A.ToJSON DisbursementRequest where toEncoding = toTolaEncoding
 instance A.FromJSON DisbursementRequest where parseJSON = parseTolaJSON
 
 -- | Create a new Tola Disbursement Request.
--- Test it by:
--- (A.encode  <$> mkDisbursementRequest (mkSecret "secret") (Amount 24) "reference" (Msisdn "30387162221") "800123" <$> getCurrentTime)
 mkDisbursementRequest
   ::    Secret
      -> Amount
-     -> Text
+     -> SourceReference
      -> Msisdn
-     -> Text
+     -> Target
      -> UTCTime
      -> DisbursementRequest
-mkDisbursementRequest s a r m t d = DisbursementRequest {
+mkDisbursementRequest s a sr m t d = DisbursementRequest {
       amount = a
     , amounttype = "unit"
     , channel = "KENYA.SAFARICOM"
     , currency = "KES"
-    , sourcereference = r
+    , sourcereference = sr
     , msisdn = m
     , requestType = "disbursement"
     , target = t

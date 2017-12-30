@@ -4,6 +4,8 @@ module Web.Localization (
     toLocalMSISDN
   , encrypt, encrypt'
   , decrypt, decrypt'
+  , getTime
+  , toHex
 ) where
 
 import qualified Codec.Crypto.AES           as AES
@@ -18,10 +20,17 @@ algorithm = AES.crypt' AES.CFB "abcdefghijl1ertg" "abcdefghijl1ertg"
 
 
 main = do
-  encrypted <- B64.encode . algorithm AES.Encrypt . C8.pack . (`showHex` "") . round . (*1000000) . fromRational . toRational <$> POSIX.getPOSIXTime
-  let decrypted = C8.unpack . algorithm AES.Decrypt  <$> B64.decode encrypted
+  encrypted <- B64.encode . algorithm AES.Encrypt . C8.pack . toHex <$> getTime 1000000
+  let decrypted = readHex . C8.unpack . algorithm AES.Decrypt  <$> B64.decode encrypted
   print encrypted
   print decrypted
+
+getTime :: (Integral b, RealFrac a) => a -> IO b
+getTime precision =
+  round . (* precision) . fromRational . toRational <$> POSIX.getPOSIXTime
+
+toHex :: (Show a, Integral a) => a -> String
+toHex n = showHex n ""
 
 encrypt' :: String -> String
 encrypt' = C8.unpack . encrypt . C8.pack

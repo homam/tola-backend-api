@@ -1,6 +1,4 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Tola.LodgementRequest (
     LodgementRequest, PLodgementRequest (..)
@@ -17,14 +15,14 @@ data PLodgementRequest a t = LodgementRequest {
   , amounttype        :: Text
   , channel           :: Text
   , currency          :: Text
-  , customerreference :: Text
+  , customerreference :: CustomerReference
   , date              :: t
-  , mac               :: Text
+  , mac               :: Mac
   , msisdn            :: Msisdn
-  , operatorreference :: Text
+  , operatorreference :: OperatorReference
   , reference         :: Text
-  , sourcereference   :: Text
-  , target            :: Text
+  , sourcereference   :: SourceReference
+  , target            :: Target
   , requestType       :: Text
 } deriving (Show, Read, Generic)
 

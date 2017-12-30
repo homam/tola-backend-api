@@ -16,10 +16,10 @@ import           Tola.Common
 
 
 data ChargeResponse =
-    SuccessChargeResponse { reference :: Text }
+    SuccessChargeResponse { reference :: SourceReference }
   | FailureChargeResponse { code :: Int, message :: Text } deriving (Show, Generic)
 
-mkSuccessChargeResponse :: Text -> ChargeResponse
+mkSuccessChargeResponse :: SourceReference -> ChargeResponse
 mkSuccessChargeResponse = SuccessChargeResponse
 
 mkFailureChargeResponse :: Int -> Text -> ChargeResponse

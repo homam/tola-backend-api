@@ -25,7 +25,7 @@ import qualified Database.PostgreSQL.Simple  as PS
 import qualified Database.Redis              as R
 import           Network.HTTP.Types          (StdMethod (..))
 import qualified Network.Wai                 as W
-import           Tola.TolaInterface          (TolaInterface)
+import           Tola.TolaInterface          (TolaApi)
 import           Web.AppState
 import           Web.Model
 import           Web.Scotty                  (RoutePattern)
@@ -54,18 +54,18 @@ getAndPostAndHead a b = get a b >> post a b >> shead a b
 addScotchHeader :: Monad m => TL.Text -> TL.Text -> ActionT e m ()
 addScotchHeader name = addHeader ("X-Scotch-" <> name)
 
-runWeb :: R.Connection -> P.Pool PS.Connection -> DB.ConnectionPool -> TolaInterface -> forall a. WebM a -> IO a
+runWeb :: R.Connection -> P.Pool PS.Connection -> DB.ConnectionPool -> TolaApi -> forall a. WebM a -> IO a
 runWeb redisConn jewlPool pool ti = runActionToIO where
   appState = AppState {
         echo = putStrLn . (unpack :: Text -> String)
       , runRedis = R.runRedis redisConn
       , runSql = (`DB.runSqlPool` pool)
       , runJewl = P.withResource jewlPool
-      , tolaInterface = ti
+      , tolaApi = ti
     }
   runActionToIO m = runReaderT (unWebM m) appState
 
-runWebM :: R.ConnectInfo -> DB.ConnectionString -> DB.ConnectionString -> TolaInterface -> WebM b -> IO b
+runWebM :: R.ConnectInfo -> DB.ConnectionString -> DB.ConnectionString -> TolaApi -> WebM b -> IO b
 runWebM redisConnInfo jewlConnStr connStr ti a = do
   redisConn <- R.checkedConnect redisConnInfo
   jewlPool <- P.createPool (PS.connectPostgreSQL jewlConnStr) PS.close 1 10 10
@@ -77,7 +77,7 @@ addServerHeader :: W.Middleware
 addServerHeader =
   W.modifyResponse (W.mapResponseHeaders (("Server", "Scotch") :))
 
-runWebServer :: Int -> R.ConnectInfo -> DB.ConnectionString -> DB.ConnectionString -> TolaInterface -> WebMApp b -> IO ()
+runWebServer :: Int -> R.ConnectInfo -> DB.ConnectionString -> DB.ConnectionString -> TolaApi -> WebMApp b -> IO ()
 runWebServer port redisConnInfo jewlConnStr connStr ti a = do
   redisConn <- R.checkedConnect redisConnInfo
   jewlPool <- P.createPool (PS.connectPostgreSQL jewlConnStr) PS.close 1 10 10

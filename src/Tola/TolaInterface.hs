@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Tola.TolaInterface (
-    TolaInterface (..)
-  , realTolaInterface
+    TolaApi (..)
+  , realTolaApi
 ) where
 
 import qualified Tola.ChargeRequest  as TChargeRequest
@@ -12,11 +12,11 @@ import           Tola.Imports
 
 
 
-data TolaInterface = TolaInterface {
+data TolaApi = TolaApi {
   makeChargeRequest :: TChargeRequest.ChargeRequest -> IO TChargeResponse.ChargeResponse
 }
 
-realTolaInterface :: TolaInterface
-realTolaInterface = TolaInterface {
+realTolaApi :: TolaApi
+realTolaApi = TolaApi {
   makeChargeRequest = error "Not implemented"
 }
