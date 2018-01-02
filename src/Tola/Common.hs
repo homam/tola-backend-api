@@ -30,7 +30,7 @@ import           Tola.Imports
 hashText :: Text -> Text
 hashText = E.decodeUtf8 . B16.encode . MD5.hash . E.encodeUtf8
 
--- | To Tola MAC
+-- | Creates a MAC digest code using MD5 hash function according to Tola docs v1.9
 toMAC :: Secret -> Msisdn -> UTCTime -> Mac
 toMAC s m d = mkMac $ hashText $ T.intercalate ":" [(unMsisdn m), pack (encodeTime d), (unSecret s)] where
   encodeTime = formatTime defaultTimeLocale "%FT%T%QZ"
@@ -101,6 +101,9 @@ newtype SourceReference = SourceReference { unSourceReference :: Text }
 
 mkSourceReference :: Text -> SourceReference
 mkSourceReference = SourceReference
+
+mkSourceReferenceFromInt :: (Integral i, Show i) => i -> SourceReference
+mkSourceReferenceFromInt = SourceReference . pack . show
 
 -- | Wraps Customer Reference in a newtype
 newtype CustomerReference = CustomerReference { unCustomerReference :: Text }

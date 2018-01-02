@@ -17,4 +17,5 @@ data AppState = AppState {
   , runSql   :: forall b. ReaderT DB.SqlBackend IO b -> IO b
   , runJewl  :: forall b. (PS.Connection -> IO b) -> IO b
   , tolaApi  :: Tola.TolaApi
+  , logIO    :: Text -> IO ()
 }

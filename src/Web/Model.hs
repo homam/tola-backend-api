@@ -136,7 +136,8 @@ runRedisCommand command = do
   run <- lift $ asks runRedis
   liftIO (run command)
 
-runApp :: (BaseBackend backend ~ SqlBackend, IsPersistBackend backend, MonadBaseControl IO m, MonadIO m) => ConnectionString -> (Pool backend -> IO a) -> m a
+runApp :: (BaseBackend backend ~ SqlBackend, IsPersistBackend backend, MonadBaseControl IO m, MonadIO m) =>
+  ConnectionString -> (Pool backend -> IO a) -> m a
 runApp connStr appf =
   runNoLoggingT $
     withPostgresqlPool connStr 10 $
@@ -226,3 +227,16 @@ runTola :: (MonadIO (t m), MonadReader AppState m, MonadTrans t) => (TolaApi -> 
 runTola f = do
   ti <- lift $ asks tolaApi
   liftIO (f ti)
+
+-- | Log a Text
+--
+-- > someRouteWeb :: WebMApp ()
+-- > someRouteWeb = getAndHead "/" $ do
+-- > ua <- header "user-agent"
+-- > logText . ("User-Agent: " <>) $ TL.toStrict (fromMaybe "N/A" ua)
+-- > ...
+--
+logText :: (MonadIO (t m), MonadReader AppState m, MonadTrans t) => Text -> t m ()
+logText m = do
+  l <- lift $ asks logIO
+  liftIO (l m)

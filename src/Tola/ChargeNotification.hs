@@ -23,6 +23,8 @@ import           Tola.Common
 mergeAeson :: [A.Value] -> A.Value
 mergeAeson = A.Object . HML.unions . map (\(A.Object x) -> x)
 
+-- | A Disbursement Notification occurs when an asynchronous Disbursement Request is received and queued by Tola,
+-- and subsequently the EMoney supplier confirms that the transaction has completed.
 data ChargeNotificationDetails = ChargeNotificationDetails {
     amount            :: Amount
   , amounttype        :: Text
@@ -32,14 +34,15 @@ data ChargeNotificationDetails = ChargeNotificationDetails {
   , date              :: UTCTime
   , mac               :: Mac
   , msisdn            :: Msisdn
-  , operatorreference :: OperatorReference
-  , sourcereference   :: SourceReference
+  , operatorreference :: OperatorReference -- ^ A mobile network provided reference
+  , sourcereference   :: SourceReference -- ^ Apparently matches 'Tola.ChargeResponse.reference' of 'Tola.ChargeResponse.SuccessChargeResponse'
   , target            :: Target
   } deriving (Show, Generic)
 
 instance A.ToJSON ChargeNotificationDetails
 instance A.FromJSON ChargeNotificationDetails
 
+-- | The data in Charge Notification callback from Tola
 data ChargeNotification =
     SuccessChargeNotification { details :: ChargeNotificationDetails }
   | FailureChargeNotification { errorMessage :: Text, details :: ChargeNotificationDetails } deriving (Show, Generic)

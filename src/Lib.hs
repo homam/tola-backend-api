@@ -10,7 +10,6 @@ import           Web.Visit
 import qualified Web.WebM           as W
 
 
-
 myApp :: W.WebMApp ()
 myApp =
   doMigrationsWeb
@@ -23,6 +22,7 @@ myApp =
 
 main :: Int -> String -> String -> IO ()
 main port jewlDb db = W.runWebServer port
+                                     W.simpleStdoutLogType
                                      R.defaultConnectInfo
                                      (E.encodeUtf8 $ T.pack jewlDb)
                                      (E.encodeUtf8 $ T.pack db)

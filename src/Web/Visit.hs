@@ -16,30 +16,31 @@ module Web.Visit(
 where
 
 import           Control.Arrow
-import           Control.Monad             (join)
-import           Control.Monad.IO.Class    (liftIO)
-import qualified Data.Aeson                as A
-import qualified Data.Aeson.Types          as AT
-import qualified Data.ByteString           as BS
-import qualified Data.HashMap.Strict       as M
-import           Data.Monoid               ((<>))
-import           Data.Text                 (Text, pack, unpack)
-import qualified Data.Text.Encoding        as E
-import qualified Data.Text.Lazy            as TL
-import qualified Data.Time.Clock           as Clock
+import           Control.Monad                       (join)
+import           Control.Monad.IO.Class              (liftIO)
+import qualified Data.Aeson                          as A
+import qualified Data.Aeson.Types                    as AT
+import qualified Data.ByteString                     as BS
+import qualified Data.HashMap.Strict                 as M
+import           Data.Monoid                         ((<>))
+import           Data.Text                           (Text, pack, unpack)
+import qualified Data.Text.Encoding                  as E
+import qualified Data.Text.Lazy                      as TL
+import qualified Data.Time.Clock                     as Clock
 import           GHC.Generics
-import           Network.HTTP.Types.Status (status500)
-import qualified Network.URI               as U
-import           Numeric                   (readHex, showHex)
-import qualified Sam.Robot                 as S
-import qualified Tola.ChargeNotification   as Tola
-import qualified Tola.ChargeRequest        as TChargeRequest
-import qualified Tola.Common               as Tola
-import qualified Tola.LodgementRequest     as Tola
-import qualified Tola.TolaInterface        as TolaInterface
-import qualified Web.JewlModel             as JM
-import           Web.Localization          (decrypt', encrypt, encrypt',
-                                            toLocalMSISDN)
+import           Network.HTTP.Types.Status           (status500)
+import qualified Network.URI                         as U
+import           Numeric                             (readHex, showHex)
+import qualified Sam.Robot                           as S
+import qualified Tola.ChargeNotification             as Tola
+import qualified Tola.ChargeRequest                  as TChargeRequest
+import qualified Tola.Common                         as Tola
+import qualified Tola.LodgementRequest               as Tola
+import qualified Tola.TolaInterface                  as TolaInterface
+import           Web.Api.ChargeRequestClientResponse (mkChargeRequestClientResponse)
+import qualified Web.JewlModel                       as JM
+import           Web.Localization                    (decrypt', encrypt,
+                                                      encrypt', toLocalMSISDN)
 import           Web.Model
 import           Web.WebM
 
@@ -139,7 +140,8 @@ chargeRequestWeb = getAndHead "/api/charge/:msisdn/:amount" $ do
   let cr = TChargeRequest.mkChargeRequest (Tola.mkSecret "secret") target amount' msisdn' now (Tola.mkSourceReference $ pack $ show crid)
   resp <- runTola (`TolaInterface.makeChargeRequest` cr)
   updateChargeRequestWithResponse cridKey resp
-  json resp --TODO: add crid to JSON response
+  json (mkChargeRequestClientResponse (Tola.mkSourceReferenceFromInt crid) resp)
+
 
 chargeNotificationWeb :: WebMApp ()
 chargeNotificationWeb =

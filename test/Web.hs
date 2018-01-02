@@ -65,7 +65,8 @@ withAppT :: TolaInterface.TolaApi -> W.ScottyT e W.WebM () -> SpecWith Applicati
 withAppT mockApi = with . Trans.scottyAppT (\a -> do
   db <- liftIO $ Env.getEnv "db"
   jewlDb <- liftIO $ Env.getEnv "jewel_connection_string"
-  W.runWebM R.defaultConnectInfo (Char8.pack jewlDb) (Char8.pack db) mockApi a)
+  W.runWebM (W.fileLogType "/Users/homam/dev/sam/tola-backend-api/temp/log.txt")
+            R.defaultConnectInfo (Char8.pack jewlDb) (Char8.pack db) mockApi a)
 
 test200
   :: Text -> (Char8.ByteString -> WaiSession WT.SResponse) -> WaiSession WT.SResponse
