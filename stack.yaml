@@ -37,16 +37,16 @@ resolver: lts-9.6
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - location: .
-- location:
-    git: https://github.com/homam/persistent-postgresql-json
-    commit: c714c6140aafd97ae9e1bdfe024792be164a3089
-  extra-dep: true
+# - location:
+#     git: https://github.com/homam/persistent-postgresql-json
+#     commit: c714c6140aafd97ae9e1bdfe024792be164a3089
+#   extra-dep: true
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- persistent-2.7.0
-- persistent-postgresql-json-0.1.1.0
+# - persistent-2.7.0
+# - persistent-postgresql-json-0.1.1.0
 - AES-0.2.9
 
 # Override default flag values for local packages and extra-deps

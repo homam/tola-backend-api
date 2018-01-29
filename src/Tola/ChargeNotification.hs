@@ -2,14 +2,13 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-
+-- TODO: rename to DisbursementNotification
 module Tola.ChargeNotification (
     ChargeNotification (..)
   , ChargeNotificationDetails (..)
   , mkChargeNotificationDetails
   , mkSuccessChargeNotification
   , mkFailureChargeNotification
-  , fromChargeRequest
 ) where
 
 import           Data.Aeson         ((.:), (.=))
@@ -90,8 +89,4 @@ mkSuccessChargeNotification = SuccessChargeNotification
 
 mkFailureChargeNotification :: Text -> ChargeNotificationDetails -> ChargeNotification
 mkFailureChargeNotification = FailureChargeNotification
-
-fromChargeRequest :: Secret -> SourceReference -> OperatorReference -> CustomerReference -> UTCTime -> CR.ChargeRequest -> ChargeNotificationDetails
-fromChargeRequest s sref oref cref d cr = mkChargeNotificationDetails s (CR.amount cr) (CR.msisdn cr) cref oref sref (CR.target cr) d
-
 

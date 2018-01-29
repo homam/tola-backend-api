@@ -10,15 +10,22 @@ import           Control.Concurrent      (forkIO, threadDelay)
 import           Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import           Control.Monad.Reader    (MonadIO, MonadReader, ReaderT, asks,
                                           lift, liftIO, runReaderT)
+import           Data.ByteString         (ByteString)
+import qualified Data.CaseInsensitive    as CI
 import           Data.Monoid             ((<>))
 import           Data.Text.Encoding      (encodeUtf8)
 import           Data.Text.Lazy          (Text, toStrict, unpack)
-import           Network.Wai             (Application)
+import           Network.Wai             (Application, Middleware, Request,
+                                          requestHeaders)
 import           Network.Wai.Test        (SResponse (..))
 import           Test.Hspec              (Spec, SpecWith, describe, hspec, it)
 import           Test.Hspec.Wai          (WaiSession, shouldRespondWith, with)
 import qualified Test.Hspec.Wai          as WaiTest
-import           Web.Scotty.Trans        (ScottyT, get, param, scottyAppT, text)
+import           Test.QuickCheck
+import           Web.Scotty.Trans        (ScottyT, get, middleware, param,
+                                          scottyAppT, text)
+
+
 
 data AppState = AppState {
   api :: Api
@@ -46,6 +53,16 @@ apiCallbackWeb :: WebMApp ()
 apiCallbackWeb = get "/callback/:notification" $
   text =<< ("Notified with " <>) <$> param "notification"
 
+-- Wai Utility
+
+myMiddleware :: Middleware
+myMiddleware app req = app (addHeader ("RequestId", "1") req)
+
+addHeader :: (ByteString, ByteString) -> Request -> Request
+addHeader (k, v) req =
+  req { requestHeaders = (CI.mk k, v) : requestHeaders req }
+
+
 -- API
 
 -- | Represents the external API
@@ -65,7 +82,10 @@ myApp :: WebMApp ()
 myApp = clientRequestWeb >> apiCallbackWeb
 
 withAppT :: Api -> ScottyT e WebM () -> SpecWith Application -> Spec
-withAppT mockApi = with . scottyAppT (runWeb mockApi)
+withAppT mockApi =
+  with . (\s -> scottyAppT (runWeb mockApi) (middleware myMiddleware >> s))
+
+
 
 testClientRequest :: (SpecWith Application -> SpecWith a) -> SpecWith a
 testClientRequest appSpec =
@@ -101,7 +121,8 @@ main = do
     appSpec :: SpecWith Application -> Spec
     appSpec = withAppT mockApi myApp
 
-    mockApi :: Api -- | Mocked external API
+    -- | Mocked external API
+    mockApi :: Api
     mockApi = Api
       { someApiCall = \str -> do
         _ <- forkIO $ do
@@ -113,4 +134,11 @@ main = do
   hspec (testClientRequest appSpec)
 
   takeMVar sync
+
+  main'
+
+main' =
+  hspec $ describe "read" $ do
+    it "is inverse to show" $ property $
+      \x -> (read . show) x == (x :: Int)
 

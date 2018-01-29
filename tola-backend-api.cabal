@@ -15,10 +15,10 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Lib,  Helpers, Test
+  exposed-modules:     Lib, Test
                      , Tola.Imports
                      , Tola.Common
-                     , Tola.LodgementRequest
+                     , Tola.LodgementNotification
                      , Tola.DisbursementRequest
                      , Tola.ChargeRequest
                      , Tola.ChargeResponse
@@ -30,13 +30,13 @@ library
                      , Web.AppState, Web.Model, Web.WebM, Web.Visit
                      , Web.Api.ChargeRequestClientResponse
                      , Web.Utils.LogMiddleware
+                     , Web.Utils.DetailedLoggerMiddleware
                      , Sam.Robot
   build-depends:       base >= 4.7 && < 5
                      , persistent >= 2.7.0
                      , monad-logger
                      , persistent-postgresql >= 2.6.1
                      , persistent-template >= 2.5.1
-                     , persistent-postgresql-json >= 0.1.1.0
                      , aeson
                      , aeson-pretty >= 0.8
                      , bytestring >= 0.10.8
@@ -76,6 +76,13 @@ library
                      , fast-logger
                      , stm
                      , async
+                     , blaze-builder
+                     , ansi-terminal >= 0.6.3
+                     , lifted-base >= 0.2.3
+                     , data-default-class >= 0.1
+                     , wai-logger >= 2.3.0
+                     , vault >= 0.3.0.7
+                     , exceptions >= 0.8.3 && < 0.9
   default-language:    Haskell2010
   ghc-options:         -W -threaded -rtsopts -with-rtsopts=-N
 
@@ -120,6 +127,7 @@ test-suite tola-backend-api-test
                      , hspec-expectations >= 0.8 && < 0.9
                      , QuickCheck
                      , derive
+                     , case-insensitive >= 1.2.0 && < 1.3
   ghc-options:         -W -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 

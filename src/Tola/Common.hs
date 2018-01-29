@@ -22,6 +22,7 @@ import           Data.Text.Encoding     as E
 import           Data.Time.Format       (defaultTimeLocale, formatTime)
 import           Database.Persist
 import           Database.Persist.Sql
+import           Debug.Trace            (trace)
 import           GHC.Generics
 import           Numeric                (readFloat, showFloat)
 import           Tola.Imports
@@ -32,12 +33,16 @@ hashText = E.decodeUtf8 . B16.encode . MD5.hash . E.encodeUtf8
 
 -- | Creates a MAC digest code using MD5 hash function according to Tola docs v1.9
 toMAC :: Secret -> Msisdn -> UTCTime -> Mac
-toMAC s m d = mkMac $ hashText $ T.intercalate ":" [(unMsisdn m), pack (encodeTime d), (unSecret s)] where
+toMAC s m d = mkMac $ trace (T.unpack mac') (hashText mac')  where
+  mac' = T.intercalate ":" [(unMsisdn m), pack (encodeTime d), (unSecret s)]
   encodeTime = formatTime defaultTimeLocale "%FT%T%QZ"
 
 newtype Secret = Secret { unSecret :: Text } deriving (Show, Generic)
 mkSecret :: Text -> Secret
 mkSecret = Secret
+
+mkSecret' :: String -> Secret
+mkSecret' = mkSecret . T.pack
 
 -- JSON utilities
 -- | Default Tola JSON options
@@ -104,6 +109,13 @@ mkSourceReference = SourceReference
 
 mkSourceReferenceFromInt :: (Integral i, Show i) => i -> SourceReference
 mkSourceReferenceFromInt = SourceReference . pack . show
+
+-- | Wraps  Reference in a newtype
+newtype Reference = Reference { unReference :: Text }
+  deriving (Show, Read, Eq, Ord, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
+
+mkReference :: Text -> Reference
+mkReference = Reference
 
 -- | Wraps Customer Reference in a newtype
 newtype CustomerReference = CustomerReference { unCustomerReference :: Text }

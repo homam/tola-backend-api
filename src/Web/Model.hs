@@ -18,7 +18,7 @@ module Web.Model
 import           Control.Monad.IO.Class      (MonadIO (..), liftIO)
 import           Control.Monad.Logger        (runNoLoggingT)
 import           Control.Monad.Trans.Reader  (ReaderT (..))
-import           Data.Text                   (Text, pack)
+import           Data.Text                   (Text)
 import qualified Data.Time                   as Time
 import           Database.Persist
 import           Database.Persist.Postgresql
@@ -32,75 +32,38 @@ import           Control.Monad.Trans.Control (MonadBaseControl)
 import           Data.Pool                   (Pool)
 import           Web.AppState
 
-import           Control.Arrow
 import qualified Data.Aeson                  as A
-import qualified Data.ByteString             as BS
 import qualified Data.ByteString.Lazy        as BL
 import qualified Data.Text.Encoding          as E
 import           Data.Time                   (UTCTime)
 import qualified Data.Time.Clock.POSIX       as POSIX
 import qualified Database.Redis              as R
-import qualified Network.URI                 as U
-import qualified Sam.Robot                   as S
-import qualified Tola.ChargeNotification     as TChargeNotification
+-- import qualified Tola.ChargeNotification     as TChargeNotification -- TODO: rename to disbursement notification
+import           Text.Read                   (readEither)
 import qualified Tola.ChargeRequest          as TChargeRequest
 import qualified Tola.ChargeResponse         as TChargeResponse
 import           Tola.Common
-import           Tola.LodgementRequest
+import qualified Tola.LodgementNotification  as TLodgementNotification
 import           Tola.TolaInterface          (TolaApi)
 
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
-MSISDNSubmission sql=msisdn_submissions json
-  Id
-  submissionId Int Maybe
-  creationTime Time.UTCTime default=now() MigrationOnly
-  country Text
-  handle Text
-  domain Text
-  offer Int
-  msisdn Text
-  isValid Bool
-  errorText Text Maybe
-  finalUrl Text Maybe
-  deriving Show
-
-PINSubmission sql=pin_submissions json
-  Id
-  submissionId Int Maybe
-  creationTime Time.UTCTime default=now() MigrationOnly
-  msisdnSubmissionId MSISDNSubmissionId
-  pin Text
-  isValid Bool
-  errorText Text Maybe
-  finalUrl Text Maybe
-  deriving Show
-
-DBLodgementRequest sql=lodgement_requests json
+DBLodgementNotification sql=lodgement_notifications json
   Id
   creationTime Time.UTCTime default=now() MigrationOnly
   amount Amount sqltype=numeric(14,5)
   msisdn Msisdn
-  date UTCTime
-  rawRequest Text sqltype=json
-
-DBChargeNotification sql=charge_notification json
-  Id
-  creationTime Time.UTCTime default=now() MigrationOnly
-  successful Bool
-  errorMessage Text Maybe
-  amount Amount sqltype=numeric(14,5)
-  msisdn Msisdn
+  reference Reference
   customerReference CustomerReference
   operatorReference OperatorReference
   sourceReference SourceReference
-  rawNotification Text Maybe sqltype=json
-
+  date UTCTime
+  rawNotification Text sqltype=json
 
 DBChargeRequest sql=charge_request json
   Id
   creationTime Time.UTCTime default=now() MigrationOnly
-  chargeNotificationId DBChargeNotificationId Maybe
+  lodgementNotificationId DBLodgementNotificationId Maybe
   amount Amount sqltype=numeric(14,5)
   msisdn Msisdn
   state TChargeRequest.ChargeRequestState sqltype=chargerequeststate
@@ -146,32 +109,8 @@ runApp connStr appf =
 doMigrations :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => t m ()
 doMigrations = runDb (runMigration migrateAll)
 
-addMSISDNSubmission :: (MonadTrans t, MonadReader AppState m, MonadIO (t m))
-  => Text -> Text -> Text -> Int -> Text -> Either (S.SubmissionError S.HttpException BS.ByteString) U.URI -> t m (Key MSISDNSubmission)
-addMSISDNSubmission domain country handle offer msisdn res = do
-  submissionId <- newSubmissionId
-  let obj = addValidationRes res $ MSISDNSubmission (Just submissionId) country handle domain offer msisdn
-  runDb (insert obj)
-  -- sid <- runDb (insert obj)
-  -- runRedisCommand (R.setOpts (E.encodeUtf8 $ pack $ show $ fromIntegral $ fromSqlKey sid) (E.encodeUtf8 $ toJsonText (sid, obj) ) (R.SetOpts (Just 60) Nothing Nothing))
-  -- return sid
-
-addPINSubmission :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => Int -> Text -> Either (S.SubmissionError S.HttpException BS.ByteString) U.URI -> t m (Key PINSubmission)
-addPINSubmission msisdnSubmissionKey pin res = do
-  submissionId <- newSubmissionId
-  runDb (insert $ addValidationRes res $ PINSubmission (Just submissionId) (toSqlKey $ fromIntegral msisdnSubmissionKey) pin)
-
-getMSISDNSubmission :: (MonadIO (t m), MonadReader AppState m, MonadTrans t, ToBackendKey SqlBackend MSISDNSubmission, Integral a) => a -> t m (Maybe MSISDNSubmission)
-getMSISDNSubmission sid = runDb (get $ toSqlKey . fromIntegral  $ sid)
-
-addValidationRes :: Either (S.SubmissionError S.HttpException BS.ByteString) U.URI -> (Bool -> Maybe Text -> Maybe Text -> a) -> a
-addValidationRes res f = f (const False ||| const True $ res) (Just . submissionErrorToText ||| const Nothing $ res) (const Nothing ||| Just . pack . ($ "") . U.uriToString id $ res)
-  where
-    submissionErrorToText (S.NetworkError e)     = pack $ show e
-    submissionErrorToText (S.ValidationError bs) = E.decodeUtf8 bs
-
-addTolaRequest :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => LodgementRequest -> t m (Key DBLodgementRequest)
-addTolaRequest req = runDb (insert $ DBLodgementRequest (amount req) (msisdn req) (date req) (toSqlJSON req))
+-- addTolaRequest :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => TLodgementNotification.LodgementNotification -> t m (Key DBLodgementNotification)
+-- addTolaRequest req = runDb (insert $ DBLodgementNotification (amount req) (msisdn req) (date req) (toSqlJSON req))
 
 addChargeRequest :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) => Amount -> Msisdn -> t m (Key DBChargeRequest)
 addChargeRequest a m = runDb (insert $ DBChargeRequest Nothing a m TChargeRequest.ChargeRequestCreated Nothing Nothing Nothing Nothing)
@@ -188,45 +127,51 @@ updateChargeRequestWithResponse chargeRequestId  = runDb . update chargeRequestI
     , DBChargeRequestResponseErrorMessage =. Just m
     ]
 
-insertChargeNotificationAndupdateChargeRequest :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) =>
-  TChargeNotification.ChargeNotification -> t m (Key DBChargeNotification)
-insertChargeNotificationAndupdateChargeRequest n =
-  runDb $ do
-    notificationId <- insert $ fromChargeNotification n
-    updateWhere
-      [DBChargeRequestReference ==. Just (TChargeNotification.sourcereference d)]
-      [
-          DBChargeRequestChargeNotificationId =. Just notificationId
-        , DBChargeRequestState =. status n
-      ]
-    return notificationId
-    where
-      fromChargeNotification (TChargeNotification.SuccessChargeNotification _) = mkDBChargeNotification True Nothing
-      fromChargeNotification (TChargeNotification.FailureChargeNotification e _) = mkDBChargeNotification False (Just e)
+insertLodgementNotificationAndupdateChargeRequest :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) =>
+  TLodgementNotification.LodgementNotification -> t m (Key DBLodgementNotification)
+insertLodgementNotificationAndupdateChargeRequest n =
+  case toSqlKey . fromIntegral <$> readEither (unpack $ unSourceReference $ TLodgementNotification.sourcereference n) of
+    Left _ -> runDb $ insert lodgementNotification
+    Right creqid -> runDb $ do
+      notificationId <- insert $ lodgementNotification
+      update
+        creqid
+        [
+            DBChargeRequestLodgementNotificationId =. Just notificationId
+          , DBChargeRequestState =. TChargeRequest.SuccessChargeNotificationReceived
+        ]
+      return notificationId
+  where
+    lodgementNotification =
+      DBLodgementNotification
+        (TLodgementNotification.amount n)
+        (TLodgementNotification.msisdn n)
+        (TLodgementNotification.reference n)
+        (TLodgementNotification.customerreference n)
+        (TLodgementNotification.operatorreference n)
+        (TLodgementNotification.sourcereference n)
+        (TLodgementNotification.date n)
+        (toSqlJSON n)
 
-      status (TChargeNotification.SuccessChargeNotification _) = TChargeRequest.SuccessChargeNotificationReceived
-      status (TChargeNotification.FailureChargeNotification e _) = TChargeRequest.FailChargeNotificationReceived
-
-      mkDBChargeNotification success errorText =
-        DBChargeNotification
-          success
-          errorText
-          (TChargeNotification.amount d)
-          (TChargeNotification.msisdn d)
-          (TChargeNotification.customerreference d)
-          (TChargeNotification.operatorreference d)
-          (TChargeNotification.sourcereference d)
-          (Just $ toSqlJSON d)
-      d = TChargeNotification.details n
-
-
+getChargeRequest :: (MonadIO (t m), MonadReader AppState m, MonadTrans t, ToBackendKey SqlBackend DBChargeRequest, Integral a)
+  => a -> t m (Maybe DBChargeRequest)
+getChargeRequest = getDbByIntId
 
 --
+getDbByIntId :: (MonadIO (t m), MonadReader AppState m, MonadTrans t, ToBackendKey SqlBackend record, Integral a)
+  => a -> t m (Maybe record)
+getDbByIntId creqid = runDb (get $ toSqlKey . fromIntegral $ creqid)
+--
 
-runTola :: (MonadIO (t m), MonadReader AppState m, MonadTrans t) => (TolaApi -> IO b) -> t m b
+runTola :: (MonadIO (t m), MonadReader AppState m, MonadTrans t) =>
+  (TolaApi -> IO b) -> t m b
 runTola f = do
   ti <- lift $ asks tolaApi
   liftIO (f ti)
+
+readSecret :: (MonadIO (t m), MonadReader AppState m, MonadTrans t) =>
+  t m Secret
+readSecret = lift $ asks secret
 
 -- | Log a Text
 --
@@ -239,4 +184,4 @@ runTola f = do
 logText :: (MonadIO (t m), MonadReader AppState m, MonadTrans t) => Text -> t m ()
 logText m = do
   l <- lift $ asks logIO
-  liftIO (l m)
+  liftIO (l $ E.encodeUtf8 m)
