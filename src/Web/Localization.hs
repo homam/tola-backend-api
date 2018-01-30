@@ -6,17 +6,18 @@ module Web.Localization (
   , decrypt, decrypt', decrypt''
   , encryptId, decryptId
   , getTime
-  , toHex
+  , toHex, fromHex
   , split
   , toNoEqB64, fromNoEqB64
   , encryptToNoEqB64, encryptToNoEqB64'
   , decryptFromNoEqB64, decryptFromNoEqB64''
   , uniqueTimestamp, M.newMVar
   , uniqueTimestampEncrypted, decryptUniqueTimestamp
+  , idToHex, fromHexId
 ) where
 
 import qualified Codec.Crypto.AES           as AES
-import           Control.Arrow              ((***))
+import           Control.Arrow              ((&&&), (***))
 import qualified Control.Concurrent.MVar    as M
 import qualified Data.ByteString.Base64.URL as B64
 import qualified Data.ByteString.Char8      as C8
@@ -57,6 +58,13 @@ getTime precision =
 
 toHex :: (Show a, Integral a) => a -> String
 toHex n = showHex n ""
+
+fromHex :: String -> Either String Integer
+fromHex = go . readHex where
+  go []    = Left "Cannot parse hex"
+  go (x:_) = Right $ fst x
+
+
 
 encrypt' :: String -> String
 encrypt' = C8.unpack . encrypt . C8.pack
@@ -136,6 +144,25 @@ encryptId prec i = encryptToNoEqB64' ' ' . (<>"." <> show i) . show <$> getTime 
 decryptId :: Read a => Rational -> String -> Either String (UTCTime, a)
 decryptId precision = fmap ((toTime *** read) . split '.') . decryptFromNoEqB64'' ' '
   where toTime = POSIX.posixSecondsToUTCTime . fromRational .  (/ precision) . fromIntegral . (read :: String -> Integer)
+
+---
+
+idToHex :: (Integral a, Show a) => Rational -> a -> IO String
+idToHex prec i = (<>"." <> toHex i) . toHex <$> getTime prec
+
+fromHexId :: Rational -> String -> Either String (UTCTime, Integer)
+fromHexId precision =
+  uncurry (\a b -> (,) <$> a <*> b) . (toTime *** fromHex) . split '.'
+
+ where
+  toTime n =
+    POSIX.posixSecondsToUTCTime
+      . fromRational
+      . (/precision)
+      . fromIntegral
+      <$> fromHex n
+
+
 
 -- | Creates a new unique timestamp generator that outputs encrypted values.
 -- Example of usage:

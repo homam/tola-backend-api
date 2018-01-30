@@ -39,12 +39,12 @@ import           Data.Time                   (UTCTime)
 import qualified Data.Time.Clock.POSIX       as POSIX
 import qualified Database.Redis              as R
 -- import qualified Tola.ChargeNotification     as TChargeNotification -- TODO: rename to disbursement notification
-import           Text.Read                   (readEither)
 import qualified Tola.ChargeRequest          as TChargeRequest
 import qualified Tola.ChargeResponse         as TChargeResponse
 import           Tola.Common
 import qualified Tola.LodgementNotification  as TLodgementNotification
 import           Tola.TolaInterface          (TolaApi)
+import qualified Web.Localization            as L
 
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
@@ -130,7 +130,7 @@ updateChargeRequestWithResponse chargeRequestId  = runDb . update chargeRequestI
 insertLodgementNotificationAndupdateChargeRequest :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) =>
   TLodgementNotification.LodgementNotification -> t m (Key DBLodgementNotification)
 insertLodgementNotificationAndupdateChargeRequest n =
-  case toSqlKey . fromIntegral <$> readEither (unpack $ unSourceReference $ TLodgementNotification.sourcereference n) of
+  case toSqlKey . fromIntegral . snd <$> L.fromHexId 10000 (unpack $ unSourceReference $ TLodgementNotification.sourcereference n) of
     Left _ -> runDb $ insert lodgementNotification
     Right creqid -> runDb $ do
       notificationId <- insert $ lodgementNotification

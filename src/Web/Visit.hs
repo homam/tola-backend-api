@@ -26,8 +26,7 @@ import qualified Tola.Common                         as Tola
 import qualified Tola.LodgementNotification          as Tola
 import qualified Tola.TolaInterface                  as TolaInterface
 import           Web.Api.ChargeRequestClientResponse (mkChargeRequestClientResponse)
-import           Web.Localization                    (decrypt', encrypt,
-                                                      encrypt', toLocalMSISDN)
+import qualified Web.Localization                    as L
 import           Web.Model
 import           Web.WebM
 
@@ -45,7 +44,6 @@ echoWeb = getAndHead "/tola/echo/:message" $ text =<< param "message"
 lodgementNotificationWeb :: WebMApp ()
 lodgementNotificationWeb =
   postAndHead "/tola/lodgement_notification/" $ do
-
     mcn :: Maybe Tola.LodgementNotification <- fmap A.decode body
     case mcn of
       Nothing -> status status500 >> json (Tola.mkSuccessResponse False)
@@ -65,12 +63,12 @@ chargeRequestWeb = getAndHead "/api/charge/:msisdn/:amount" $ do
   msisdn' <- Tola.mkMsisdn <$> param "msisdn"
   now <- liftIO Clock.getCurrentTime
   cridKey <- addChargeRequest amount' msisdn'
-  let crid = fromIntegral . fromSqlKey $ cridKey
-  addScotchHeader "ChargeRequestId" (TL.pack $ show crid)
-  let target = Tola.mkTarget "800000"
+  crid <- liftIO $ L.idToHex 10000  . fromIntegral . fromSqlKey $ cridKey
+  addScotchHeader "ChargeRequestId" (TL.pack crid)
+  let target = Tola.mkTarget "850702"
   secret <- readSecret
   let cr = TChargeRequest.mkChargeRequest secret target amount' msisdn' now (Tola.mkSourceReference $ pack $ show crid)
   resp <- runTola (`TolaInterface.makeChargeRequest` cr)
   updateChargeRequestWithResponse cridKey resp
-  json (mkChargeRequestClientResponse (Tola.mkSourceReferenceFromInt crid) resp)
+  json (mkChargeRequestClientResponse (Tola.mkSourceReferenceFromString crid) resp)
 

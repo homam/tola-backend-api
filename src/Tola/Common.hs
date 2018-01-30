@@ -110,6 +110,10 @@ mkSourceReference = SourceReference
 mkSourceReferenceFromInt :: (Integral i, Show i) => i -> SourceReference
 mkSourceReferenceFromInt = SourceReference . pack . show
 
+mkSourceReferenceFromString :: String -> SourceReference
+mkSourceReferenceFromString = SourceReference . pack
+
+
 -- | Wraps  Reference in a newtype
 newtype Reference = Reference { unReference :: Text }
   deriving (Show, Read, Eq, Ord, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
