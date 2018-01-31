@@ -18,7 +18,8 @@ module Web.WebM (
 
 import           Control.Monad                      (void)
 import           Control.Monad.Catch                (onException)
-import           Control.Monad.Reader               (MonadIO, MonadReader)
+import           Control.Monad.Reader               (MonadIO, MonadReader,
+                                                     liftIO)
 import           Control.Monad.Trans.Reader         (ReaderT (..), runReaderT)
 import           Data.ByteString                    (ByteString)
 import           Data.Monoid                        ((<>))
@@ -55,6 +56,9 @@ newtype WebM a = WebM { unWebM :: ReaderT AppState IO a }
 type WebMAction a = ActionT TL.Text WebM a
 type WebMApp a = ScottyT TL.Text WebM ()
 
+fromWebM :: AppState -> WebM a -> WebMAction a
+fromWebM s m = liftIO $ runReaderT (unWebM m) s
+
 shead :: (ScottyError e, MonadIO m) => RoutePattern -> ActionT e m () -> ScottyT e m ()
 shead = addroute HEAD
 
@@ -77,6 +81,7 @@ runWeb myLogger redisConn jewlPool pool sec ti = runActionToIO where
       , logIO = myLogger
       , secret = sec
     }
+  runActionToIO :: WebM a -> IO a
   runActionToIO m = runReaderT (unWebM m) appState
 
 withLogger :: forall msg b. ToLogStr msg => IO FL.LogType -> ((msg -> IO ()) -> IO b) -> IO b

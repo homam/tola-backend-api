@@ -67,7 +67,7 @@ chargeRequestWeb = getAndHead "/api/charge/:msisdn/:amount" $ do
   addScotchHeader "ChargeRequestId" (TL.pack crid)
   let target = Tola.mkTarget "850702"
   secret <- readSecret
-  let cr = TChargeRequest.mkChargeRequest secret target amount' msisdn' now (Tola.mkSourceReference $ pack $ show crid)
+  let cr = TChargeRequest.mkChargeRequest secret target amount' msisdn' now (Tola.mkSourceReference . pack $ crid)
   resp <- runTola (`TolaInterface.makeChargeRequest` cr)
   updateChargeRequestWithResponse cridKey resp
   json (mkChargeRequestClientResponse (Tola.mkSourceReferenceFromString crid) resp)

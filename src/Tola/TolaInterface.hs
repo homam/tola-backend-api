@@ -7,18 +7,15 @@ module Tola.TolaInterface (
 ) where
 
 import           Control.Monad.Reader
-import           Control.Monad.Trans.Identity
-import qualified Tola.ChargeRequest           as TChargeRequest
-import qualified Tola.ChargeResponse          as TChargeResponse
+import qualified Tola.ChargeRequest    as TChargeRequest
+import qualified Tola.ChargeResponse   as TChargeResponse
 import           Tola.Common
-import           Tola.Imports
 ---
-import qualified Data.Aeson                   as A
-import qualified Data.ByteString.Char8        as B
-import           Data.ByteString.Lazy         (fromStrict, pack, toStrict)
-import qualified Data.Maybe                   as Y
-import           Data.Word                    (Word8)
-import           Network.HTTP.Conduit
+import qualified Data.Aeson            as A
+import qualified Data.ByteString.Char8 as B
+import           Data.ByteString.Lazy  (fromStrict, toStrict)
+import qualified Data.Maybe            as Y
+import qualified Network.HTTP.Conduit  as C
 
 newtype TolaApiM m a = TolaApiM { unTolaApiM :: ReaderT Secret m a }
 
@@ -31,7 +28,7 @@ realTolaApi = TolaApi {
   -- https://api.ea.oxygen8.com/sammedia
   -- makeChargeRequest = const $ return $ TChargeResponse.FailureChargeResponse 37366 "Real Tola API not implemented"
   makeChargeRequest = \ req -> do
-      res <- post "https://api.ea.oxygen8.com/sammedia" req
+      res <- post "https://requestb.in/u47ujvu4" req
       return $ Y.fromJust (A.decode $ fromStrict res) -- TODO: change fromJust
 
 }
@@ -40,18 +37,18 @@ realTolaApi = TolaApi {
 
 post :: A.ToJSON t => String -> t -> IO B.ByteString
 post url obj = do
-  manager <- newManager tlsManagerSettings
-  r <- parseUrl url
+  manager <- C.newManager C.tlsManagerSettings
+  r <- C.parseUrl url
   let json = A.encode obj
-  let request = applyBasicAuth "sammedia" "ZDMzNjY3" $ r {
-      secure = True
-    , method = "POST"
-    , requestBody = RequestBodyBS (toStrict json)
-    , requestHeaders = (requestHeaders r) ++ [("Content-Type",  "application/json")]
+  let request = C.applyBasicAuth "sammedia" "ZDMzNjY3" $ r {
+      C.secure = True
+    , C.method = "POST"
+    , C.requestBody = C.RequestBodyBS (toStrict json)
+    , C.requestHeaders = (C.requestHeaders r) ++ [("Content-Type",  "application/json")]
     }
   print request
-  print (toStrict json)
-  response <- httpLbs request manager
-  print $ responseBody response
-  return $ toStrict $ responseBody response
+  B.putStrLn (toStrict json)
+  response <- C.httpLbs request manager
+  print $ C.responseBody response
+  return $ toStrict $ C.responseBody response
 

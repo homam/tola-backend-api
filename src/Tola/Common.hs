@@ -33,7 +33,8 @@ hashText = E.decodeUtf8 . B16.encode . MD5.hash . E.encodeUtf8
 
 -- | Creates a MAC digest code using MD5 hash function according to Tola docs v1.9
 toMAC :: Secret -> Msisdn -> UTCTime -> Mac
-toMAC s m d = mkMac $ trace (T.unpack mac') (hashText mac')  where
+toMAC s m d = mkMac $ trace (T.unpack mac') (hashText mac')
+ where
   mac' = T.intercalate ":" [(unMsisdn m), pack (encodeTime d), (unSecret s)]
   encodeTime = formatTime defaultTimeLocale "%FT%T%QZ"
 
@@ -48,23 +49,26 @@ mkSecret' = mkSecret . T.pack
 -- | Default Tola JSON options
 tolaJSONOptions :: AT.Options
 tolaJSONOptions = A.defaultOptions
-  { AT.fieldLabelModifier = \case
+  { AT.fieldLabelModifier    = \case
     "requestType" -> "type"
     x             -> x
+  , AT.allNullaryToStringTag = True
   }
 
 -- | Use to create 'ToJSON' instances
 -- @
 -- toEncoding = toTolaEncoding
 -- @
-toTolaEncoding :: (AT.GToEncoding AT.Zero (Rep a), Generic a) => a -> AT.Encoding
+toTolaEncoding
+  :: (AT.GToEncoding AT.Zero (Rep a), Generic a) => a -> AT.Encoding
 toTolaEncoding = A.genericToEncoding tolaJSONOptions
 
 -- | Use to create 'FromJSON' instances
 -- @
 -- parseJSON = parseTolaJSON
 -- @
-parseTolaJSON :: (AT.GFromJSON AT.Zero (Rep a), Generic a) => AT.Value -> AT.Parser a
+parseTolaJSON
+  :: (AT.GFromJSON AT.Zero (Rep a), Generic a) => AT.Value -> AT.Parser a
 parseTolaJSON = A.genericParseJSON tolaJSONOptions
 
 -- | Represents the 'amount' field in LodgementReuest object
