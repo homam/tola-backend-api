@@ -7,7 +7,7 @@ module Web.Visit(
   , lodgementNotificationWeb
   , chargeRequestWeb
   , echoWeb
-  , homeWeb
+  , homeWeb, tolaRootWeb
 )
 where
 
@@ -38,7 +38,11 @@ doMigrationsWeb =
     doMigrations >> text "done!"
 
 homeWeb :: WebMApp ()
-homeWeb = getAndHead "/" $ status status404 >> text ""
+homeWeb = getAndPostAndHead "/" $ status status404 >> text ""
+
+tolaRootWeb :: WebMApp ()
+tolaRootWeb = getAndPostAndHead "/tola" $ status status404 >> text ""
+
 
 echoWeb :: WebMApp ()
 echoWeb = getAndHead "/tola/echo/:message" $ text =<< param "message"

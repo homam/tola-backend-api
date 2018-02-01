@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 -- NOTE: Due to https://github.com/yesodweb/wai/issues/192, this module should
 -- not use CPP.
@@ -26,7 +25,6 @@ import qualified Data.ByteString.Char8     as S8
 import qualified Data.ByteString.Lazy      as LBS
 import           Data.Default.Class        (Default (def))
 import           Data.IORef.Lifted
-import           Data.Maybe                (fromMaybe)
 import           Data.Monoid               (mconcat, (<>))
 import           Data.Text.Encoding        (decodeUtf8')
 import           Data.Time                 (NominalDiffTime, diffUTCTime,
@@ -48,7 +46,9 @@ import           System.Log.FastLogger
 --
 import           Control.Exception
 import qualified Data.CaseInsensitive      as CI
+import qualified Data.List                 as L
 import qualified Network.HTTP.Types.Status as Status
+import qualified Network.Wai               as W
 
 data OutputFormat = Apache IPAddrSource
                   | Detailed Bool -- ^ use colors?
@@ -189,6 +189,9 @@ detailedMiddleware' cb uniqueIdGenerator ansiColor ansiMethod ansiStatusCode app
             (_, Just len)        | len <= 2048 -> getRequestBody req
             _                    -> return (req, [])
 
+    let headers' = foldl1 (<>) $ L.map ("\n    " <>) $ map (\(k, v) -> CI.foldedCase k <> ": " <> v) (W.requestHeaders req)
+        -- path = W.rawPathInfo req
+        rawQueryString = W.rawQueryString req
     let reqbodylog _ = if null body then [""] else ansiColor White "  Request Body: " <> body <> ["\n"]
         reqbody = concatMap (either (const [""]) reqbodylog . decodeUtf8') body
     postParams <- if requestMethod req `elem` ["GET", "HEAD"]
@@ -197,7 +200,7 @@ detailedMiddleware' cb uniqueIdGenerator ansiColor ansiMethod ansiStatusCode app
                 return $ collectPostParams postParams
 
     let getParams = map emptyGetParam $ queryString req
-        accept = fromMaybe "" $ lookup H.hAccept $ requestHeaders req
+        -- accept = fromMaybe "" $ lookup H.hAccept $ requestHeaders req
         params = let par | not $ null postParams = [pack (show postParams)]
                          | not $ null getParams  = [pack (show getParams)]
                          | otherwise             = []
@@ -208,7 +211,10 @@ detailedMiddleware' cb uniqueIdGenerator ansiColor ansiMethod ansiStatusCode app
             ansiColor Green "RequestId: " ++ [requestId, "\n"] ++
             ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
             params ++ reqbody ++
-            ansiColor White "  Accept: " ++ [accept, "\n"] ++ l)
+            -- ansiColor White "  Accept: " ++ [accept, "\n"] ++ l)
+            ansiColor White "  Request Headers: " ++ [headers', "\n"] ++
+            ansiColor White "  Raw Query String: " ++ [rawQueryString, "\n"]
+            )
     catch (app req' $ \rsp -> do
         let isRaw =
                 case rsp of

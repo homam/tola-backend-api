@@ -17,6 +17,7 @@ myApp =
 
     >> homeWeb
     -- Tola API
+    >> tolaRootWeb
     >> echoWeb
     >> lodgementNotificationWeb
     >> lodgementNotificationWeb
