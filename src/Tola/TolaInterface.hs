@@ -28,7 +28,7 @@ realTolaApi = TolaApi {
   -- https://api.ea.oxygen8.com/sammedia
   -- makeChargeRequest = const $ return $ TChargeResponse.FailureChargeResponse 37366 "Real Tola API not implemented"
   makeChargeRequest = \ req -> do
-      res <- post "https://requestb.in/u47ujvu4" req
+      res <- post "https://api.ea.oxygen8.com/sammedia" req
       return $ Y.fromJust (A.decode $ fromStrict res) -- TODO: change fromJust
 
 }

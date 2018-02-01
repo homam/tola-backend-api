@@ -7,6 +7,7 @@ module Web.Visit(
   , lodgementNotificationWeb
   , chargeRequestWeb
   , echoWeb
+  , homeWeb
 )
 where
 
@@ -19,7 +20,7 @@ import           Data.Text                           (Text, pack, unpack)
 import qualified Data.Text.Encoding                  as E
 import qualified Data.Text.Lazy                      as TL
 import qualified Data.Time.Clock                     as Clock
-import           Network.HTTP.Types.Status           (status500)
+import           Network.HTTP.Types.Status           (mkStatus, status404)
 -- import qualified Tola.LodgementNotification             as Tola -- TODO: rename to disbursement notification
 import qualified Tola.ChargeRequest                  as TChargeRequest
 import qualified Tola.Common                         as Tola
@@ -36,6 +37,9 @@ doMigrationsWeb =
   getAndHead "/do_migrations" $
     doMigrations >> text "done!"
 
+homeWeb :: WebMApp ()
+homeWeb = getAndHead "/" $ status status404 >> text ""
+
 echoWeb :: WebMApp ()
 echoWeb = getAndHead "/tola/echo/:message" $ text =<< param "message"
 
@@ -43,11 +47,11 @@ echoWeb = getAndHead "/tola/echo/:message" $ text =<< param "message"
 
 lodgementNotificationWeb :: WebMApp ()
 lodgementNotificationWeb =
-  postAndHead "/tola/lodgement_notification/" $ do
-    mcn :: Maybe Tola.LodgementNotification <- fmap A.decode body
+  post "/tola/lodgement_notification/" $ do
+    mcn :: Either String Tola.LodgementNotification <- fmap A.eitherDecode body
     case mcn of
-      Nothing -> status status500 >> json (Tola.mkSuccessResponse False)
-      Just cn -> do
+      Left err -> status (mkStatus 500 $ E.encodeUtf8 $ pack err) >> json (Tola.mkSuccessResponse False)
+      Right cn -> do
         cnid <- fromIntegral . fromSqlKey <$> insertLodgementNotificationAndupdateChargeRequest cn
         addScotchHeader "LodgementNotificationId" (TL.pack $ show cnid)
         json $ Tola.mkSuccessResponse True

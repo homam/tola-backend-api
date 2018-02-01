@@ -15,6 +15,7 @@ myApp :: W.WebMApp ()
 myApp =
   doMigrationsWeb
 
+    >> homeWeb
     -- Tola API
     >> echoWeb
     >> lodgementNotificationWeb

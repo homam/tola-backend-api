@@ -24,7 +24,7 @@ import           Database.Persist
 import           Database.Persist.Sql
 import           Debug.Trace            (trace)
 import           GHC.Generics
-import           Numeric                (readFloat, showFloat)
+import           Numeric                (readFloat, showFFloat)
 import           Tola.Imports
 
 -- | MD5 hash
@@ -88,7 +88,13 @@ instance PersistFieldSql Amount where
   sqlType _ = SqlReal
 
 instance A.ToJSON Amount where
-  toJSON = AT.String . pack . (`showFloat` "") . (fromRational :: Rational -> Double) . unAmount
+  toJSON =
+    AT.String
+      . pack
+      . (\f -> showFFloat (Just 0) f "") -- Tola amount does not support "10.0"
+      . (fromRational :: Rational -> Double)
+      . unAmount
+
 
 instance A.FromJSON Amount where
   parseJSON = fmap Amount . parseAmount where
