@@ -207,13 +207,15 @@ detailedMiddleware' cb uniqueIdGenerator ansiColor ansiMethod ansiStatusCode app
                  in if null par then [""] else ansiColor White "  Params: " <> par <> ["\n"]
 
     t0 <- getCurrentTime
-    let cb' = cb . (\ l -> mconcat $ map toLogStr $ ["\n"] ++
+    let cb' = cb . (\ l -> mconcat $ map toLogStr $ ["\n----Start>\n"] ++
             ansiColor Green "RequestId: " ++ [requestId, "\n"] ++
             ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
             params ++ reqbody ++
             -- ansiColor White "  Accept: " ++ [accept, "\n"] ++ l)
             ansiColor White "  Request Headers: " ++ [headers', "\n"] ++
             ansiColor White "  Raw Query String: " ++ [rawQueryString, "\n"]
+            ++ l
+            ++ ["\n----End>\n"]
             )
     catch (app req' $ \rsp -> do
         let isRaw =

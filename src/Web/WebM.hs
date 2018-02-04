@@ -125,7 +125,7 @@ runWebM logType redisConnInfo jewlConnStr connStr sec ti =
           )
       )
 
-runWebServer :: Int -> IO FL.LogType -> R.ConnectInfo -> DB.ConnectionString -> DB.ConnectionString -> Secret -> TolaApi -> WebMApp b -> IO ()
+runWebServer :: Int -> IO FL.LogType -> R.ConnectInfo -> DB.ConnectionString -> DB.ConnectionString -> Secret -> ((ByteString -> IO ()) -> TolaApi) -> WebMApp b -> IO ()
 runWebServer port logType redisConnInfo jewlConnStr connStr sec ti a = do
   redisConn <- onException (R.checkedConnect redisConnInfo) (putStrLn "Error: Cannot connect to redis")
   jewlPool <- P.createPool (PS.connectPostgreSQL jewlConnStr) PS.close 1 10 10
@@ -134,7 +134,7 @@ runWebServer port logType redisConnInfo jewlConnStr connStr sec ti a = do
       runApp
         connStr
         (\ pool ->
-            scottyT port (runWeb logger redisConn jewlPool pool sec ti) app
+            scottyT port (runWeb logger redisConn jewlPool pool sec (ti logger)) app
         )
     ) logType a
 
