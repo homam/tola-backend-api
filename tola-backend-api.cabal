@@ -22,7 +22,7 @@ library
                      , Tola.DisbursementRequest
                      , Tola.ChargeRequest
                      , Tola.ChargeResponse
-                     , Tola.ChargeNotification
+                     , Tola.DisbursementNotification
                      , Tola.TolaInterface
                      , Web.JewlModel
                      , Web.Localization

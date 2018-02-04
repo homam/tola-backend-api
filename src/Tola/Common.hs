@@ -59,16 +59,17 @@ tolaJSONOptions = A.defaultOptions
 -- @
 -- toEncoding = toTolaEncoding
 -- @
-toTolaEncoding
-  :: (AT.GToEncoding AT.Zero (Rep a), Generic a) => a -> AT.Encoding
+toTolaEncoding :: (AT.GToEncoding AT.Zero (Rep a), Generic a) => a -> AT.Encoding
 toTolaEncoding = A.genericToEncoding tolaJSONOptions
+
+toTolaJSON :: (Generic a, AT.GToJSON AT.Zero (Rep a)) => a -> AT.Value
+toTolaJSON = A.genericToJSON tolaJSONOptions
 
 -- | Use to create 'FromJSON' instances
 -- @
 -- parseJSON = parseTolaJSON
 -- @
-parseTolaJSON
-  :: (AT.GFromJSON AT.Zero (Rep a), Generic a) => AT.Value -> AT.Parser a
+parseTolaJSON :: (AT.GFromJSON AT.Zero (Rep a), Generic a) => AT.Value -> AT.Parser a
 parseTolaJSON = A.genericParseJSON tolaJSONOptions
 
 -- | Represents the 'amount' field in LodgementReuest object
@@ -82,6 +83,7 @@ mkAmount = Amount
 instance PersistField Amount where
    toPersistValue = PersistDouble . fromRational . unAmount
    fromPersistValue (PersistDouble c) = Right . Amount . toRational $ c
+   fromPersistValue (PersistRational c) = Right . Amount $ c
    fromPersistValue x = Left $ pack $ "Expected Double, got: " ++ show x
 
 instance PersistFieldSql Amount where
@@ -166,3 +168,16 @@ instance A.FromJSON SuccessResponse
 
 mkSuccessResponse :: Bool -> SuccessResponse
 mkSuccessResponse = SuccessResponse
+
+---
+
+data ApiError d = ApiError { errorMessage :: String, details :: d } deriving (Show, Read, Generic)
+
+instance A.ToJSON d => A.ToJSON (ApiError d)
+instance A.FromJSON d => A.FromJSON (ApiError d)
+
+mkApiError :: String -> ApiError ()
+mkApiError = (`ApiError` ())
+
+mkApiErrorWithDetails :: String -> d -> ApiError d
+mkApiErrorWithDetails = ApiError

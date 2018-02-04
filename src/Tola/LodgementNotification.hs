@@ -29,6 +29,7 @@ data PLodgementNotification a t = LodgementNotification {
   , requestType       :: Text
 } deriving (Show, Read, Generic)
 
+
 type LodgementNotification = PLodgementNotification Amount UTCTime
 
 instance (A.ToJSON a, A.ToJSON t) => A.ToJSON (PLodgementNotification a t) where

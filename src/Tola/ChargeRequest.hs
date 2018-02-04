@@ -8,10 +8,15 @@ module Tola.ChargeRequest (
     ChargeRequest (..)
   , mkChargeRequest
   , ChargeRequestState (..)
+  , mkChargeRequestStatus, ChargeRequestStatus
 ) where
 
-import qualified Data.Aeson          as A
-import           Database.Persist.TH
+import           Control.Arrow         ((+++))
+import qualified Data.Aeson            as A
+import qualified Data.ByteString.Char8 as Char8
+import           Database.Persist
+import           Database.Persist.Sql
+import           Text.Read             (readEither)
 import           Tola.Common
 import           Tola.Imports
 
@@ -63,8 +68,27 @@ data ChargeRequestState =
     ChargeRequestCreated
   | SuccessChargeResponseReceived
   | FailChargeResponseReceived
-  | SuccessChargeNotificationReceived
-  | FailChargeNotificationReceived
+  | SuccessLodgementNotificationReceived
+  | FailLodgementNotificationReceived
+  | SuccessDisbursementNotificationReceived
+  | FailDisbursementNotificationReceived
   deriving (Show, Read, Eq, Enum, Generic, A.ToJSON, A.FromJSON)
 
-derivePersistField "ChargeRequestState"
+instance PersistField ChargeRequestState where
+   toPersistValue = PersistDbSpecific . Char8.pack . show
+   fromPersistValue (PersistDbSpecific c) =  (pack +++ id) . readEither . Char8.unpack $ c
+   fromPersistValue x = Left $ pack $ "Expected chargerequeststate, got: " ++ show x
+
+instance PersistFieldSql ChargeRequestState where
+  sqlType _ = SqlOther "chargerequeststate"
+
+
+data ChargeRequestStatus = ChargeRequestStatus {
+    state        :: ChargeRequestState
+  , reference    :: Maybe SourceReference
+  , errorMessage :: Maybe Text
+} deriving (Show, Read, Generic, A.ToJSON, A.FromJSON)
+
+mkChargeRequestStatus :: ChargeRequestState -> Maybe SourceReference -> Maybe Text -> ChargeRequestStatus
+mkChargeRequestStatus = ChargeRequestStatus
+

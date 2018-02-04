@@ -34,6 +34,7 @@ import qualified Data.CaseInsensitive               as CI
 import           Data.Time.Clock                    (getCurrentTime)
 import qualified Tola.ChargeRequest                 as TChargeRequest
 import qualified Tola.ChargeResponse                as TChargeResponse
+import qualified Tola.DisbursementNotification      as TDisbursementNotification
 import qualified Tola.LodgementNotification         as TLodgementNotification
 import qualified Tola.TolaInterface                 as TolaInterface
 import           Web.Localization                   (getTime, toHex)
@@ -67,7 +68,7 @@ addHeader (k, v) req =
 
 myApp :: W.WebMApp ()
 myApp =
-  doMigrationsWeb >> lodgementNotificationWeb >> chargeRequestWeb
+  doMigrationsWeb >> lodgementNotificationWeb >> disbursementNotificationWeb >> chargeRequestWeb
 
 
 withAppT :: TolaInterface.TolaApi -> W.WebMApp () -> SpecWith Application -> Spec
@@ -130,11 +131,19 @@ testAddChargeRequest appSpec =
     $ addChargeRequestTest
 
 testAddLodgementNotificationForCharge appSpec notification =
-  describe "Testing Add Charge Notification"
+  describe "Testing Add Lodgement Notification"
     $ appSpec
     $ it "must return '{ success: true }' JSON"
     $ do
-      r <- getResponseBody <$> testPost200 "/tola/lodgement_notification/" (A.encode notification)
+      void $ getResponseBody <$> testPost200 "/tola/lodgement_notification/" (A.encode notification)
+      return ()
+
+testAddDisbursementNotificationForCharge appSpec notification =
+  describe "Testing Add Disbursement Notification"
+    $ appSpec
+    $ it "must return '{ success: true }' JSON"
+    $ do
+      void $ getResponseBody <$> testPost200 "/tola/disbursement_notification/" (A.encode notification)
       return ()
 
 
@@ -150,18 +159,29 @@ testChargeRequestAndNotification mockApi = do
       TolaInterface.makeChargeRequest = \req -> do
         _ <- forkIO $ do
           threadDelay 10000 -- artificial delay to simulate async callback
-          now <- getCurrentTime
+          nowl <- getCurrentTime
           ref <- mkReference . pack . toHex <$> getTime 1000
-          let notification = TLodgementNotification.fromChargeRequest
+          let lnotification = TLodgementNotification.fromChargeRequest
                 secret
                 ref
                 (mkOperatorReference "operator.ref")
                 (mkCustomerReference "custoemr.ref")
                 Nothing
-                now
+                nowl
                 req
-          -- Send notification callback back to our server
-          hspec $ testAddLodgementNotificationForCharge appSpec notification
+          -- Send lnotification callback back to our server
+          hspec $ testAddLodgementNotificationForCharge appSpec lnotification
+
+          threadDelay 10000 -- artificial delay to simulate async callback
+          nowd <- getCurrentTime
+          let dnotification = TDisbursementNotification.fromChargeRequest
+                secret
+                (mkOperatorReference "operator.ref")
+                (mkCustomerReference "custoemr.ref")
+                nowd
+                req
+          -- Send dnotification callback back to our server
+          hspec $ testAddDisbursementNotificationForCharge appSpec dnotification
 
           putMVar sync ()
 

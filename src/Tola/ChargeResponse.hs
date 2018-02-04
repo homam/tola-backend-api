@@ -7,6 +7,7 @@ module Tola.ChargeResponse (
     ChargeResponse (..)
   , mkSuccessChargeResponse
   , mkFailureChargeResponse
+  , toApiError
 ) where
 
 import           Data.Aeson       ((.:), (.=))
@@ -42,6 +43,6 @@ instance A.FromJSON ChargeResponse where
   parseJSON o = AT.typeMismatch "{ success :: Boolean}" o
 
 
-
-
-
+toApiError :: ChargeResponse -> Either (ApiError ChargeResponse) ChargeResponse
+toApiError r@(FailureChargeResponse _ m) = Left $ mkApiErrorWithDetails (unpack m) r
+toApiError r                             = Right r

@@ -20,10 +20,11 @@ myApp =
     >> tolaRootWeb
     >> echoWeb
     >> lodgementNotificationWeb
-    >> lodgementNotificationWeb
+    >> disbursementNotificationWeb
 
     -- Client API
     >> chargeRequestWeb
+    >> checkChargeRequestWeb
 
 
 main :: Int -> String -> String -> Secret -> IO ()
