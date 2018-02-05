@@ -12,11 +12,13 @@ module Tola.DisbursementNotification (
   , successAndError
 ) where
 
-import           Data.Aeson         ((.:), (.=))
+import           Control.Arrow      ((|||))
+import           Data.Aeson         ((.:), (.:?), (.=))
 import qualified Data.Aeson         as A
 import qualified Data.Aeson.Types   as AT
 import qualified Data.HashMap.Lazy  as HML
 import           Data.Time          (UTCTime)
+import           Text.Read          (readEither)
 import qualified Tola.ChargeRequest as CR
 import           Tola.Common
 
@@ -39,6 +41,43 @@ data DisbursementNotificationDetails = DisbursementNotificationDetails {
   , target            :: Target
   , requestType       :: Text
   } deriving (Show, Generic)
+
+
+-- 2018-02-05T11:49:40+0000:
+-- ----Start>
+-- RequestId: 151783138058487
+-- POST /tola/disbursement_notification
+--   Request Body: {
+--    "accountname" : "LEE MBUGUA KAIRIANJA",
+--    "amount" : "10.0",
+--    "amounttype" : "unit",
+--    "channel" : "KENYA.SAFARICOM",
+--    "currency" : "KES",
+--    "customerreference" : "dcdf9f73531.a",
+--    "date" : "2018-02-05T11:49:39Z",
+--    "errormessage" : "rejected",
+--    "mac" : "5149CB3E373D5564AFA57A14FEEBCD92",
+--    "msisdn" : "254797561830",
+--    "operatorreference" : "09f757d20a78be8a53ecde41effa8152",
+--    "sourcereference" : "1.100.1517831319.1",
+--    "success" : "false",
+--    "target" : "850702",
+--    "type" : "notification"
+-- }
+
+--   Request Headers:
+--     x-requestid: 151783138058487
+--     connection: upgrade
+--     x-forwarded-for: 197.248.3.186
+--     host: tola-api.sam-media.com
+--     content-length: 520
+--     user-agent: Oxygen8 HTTP Client
+--     accept: */*
+--     content-type: application/json
+--   Raw Query String:
+--   Status: 500 Error in $.success: expected Bool, encountered String 0.000098s
+--   Response Body: {"success":false}
+-- ----End>
 
 instance A.ToJSON DisbursementNotificationDetails
 instance A.FromJSON DisbursementNotificationDetails
@@ -78,15 +117,22 @@ instance A.ToJSON DisbursementNotification where
 
 instance A.FromJSON DisbursementNotification where
   parseJSON j@(A.Object o) = do
-    (tag :: Bool) <- o .: "success"
+    (tag :: Bool) <- isSuccess o
     if tag
       then SuccessDisbursementNotification <$> parseTolaJSON j
       else FailureDisbursementNotification <$> (o .: "errormessage") <*> parseTolaJSON j
+      where
+          isSuccess o = do
+            (b :: Either String Bool)  <- maybeToRight "" <$> (o .:? "success")
+            (s :: Either String Bool)  <- readEither <$> (o .: "success")
+            return $ (const (const False ||| id $  s) ||| id) b
+
   parseJSON o = AT.typeMismatch "{ success :: Boolean}" o
 
 mkDisbursementNotification :: Either Text () -> DisbursementNotificationDetails -> DisbursementNotification
 mkDisbursementNotification (Left e) = mkFailureDisbursementNotification e
 mkDisbursementNotification _        = mkSuccessDisbursementNotification
+
 
 mkDisbursementNotificationDetails
   :: Secret
@@ -138,3 +184,8 @@ fromChargeRequest s oref cref d cr =
     (CR.target cr)
     "notification"
     d
+
+
+maybeToRight :: b -> Maybe a -> Either b a
+maybeToRight _ (Just x) = Right x
+maybeToRight y Nothing  = Left y
