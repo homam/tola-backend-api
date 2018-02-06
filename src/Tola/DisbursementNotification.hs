@@ -12,14 +12,15 @@ module Tola.DisbursementNotification (
   , successAndError
 ) where
 
-import           Control.Arrow      ((|||))
-import           Data.Aeson         ((.:), (.:?), (.=))
-import qualified Data.Aeson         as A
-import qualified Data.Aeson.Types   as AT
-import qualified Data.HashMap.Lazy  as HML
-import           Data.Time          (UTCTime)
-import           Text.Read          (readEither)
-import qualified Tola.ChargeRequest as CR
+import           Control.Arrow              ((|||))
+import           Data.Aeson                 ((.:), (.:?), (.=))
+import qualified Data.Aeson                 as A
+import qualified Data.Aeson.Types           as AT
+import qualified Data.ByteString.Lazy.Char8 as Char8
+import qualified Data.HashMap.Lazy          as HML
+import           Data.Time                  (UTCTime)
+import           Text.Read                  (readEither)
+import qualified Tola.ChargeRequest         as CR
 import           Tola.Common
 
 mergeAeson :: [A.Value] -> A.Value
@@ -123,15 +124,15 @@ instance A.FromJSON DisbursementNotification where
       else FailureDisbursementNotification <$> (o .: "errormessage") <*> parseTolaJSON j
       where
           isSuccess :: AT.Object -> AT.Parser Bool
-          isSuccess o = do
-            -- (s :: Either String Bool)  <- maybeToRight "" <$> (o .:? "success")
-            (b :: Either String Bool)  <- toBool <$> (o .: "success")
-            -- return $ (const (const False ||| id $  s) ||| id) b
-            return (const False ||| id $ b)
+          isSuccess =  (go =<<) . (.: "success")
 
-          toBool "true"  = Right True
-          toBool "false" = Right False
-          toBool x       = Left $ "Cannot parse to bool " ++ x
+          go (AT.String s) = toBool s
+          go (AT.Bool b)   = return b
+          go v             = fail $ "Expected either String or Bool but got: " ++ (Char8.unpack $ A.encode v)
+
+          toBool "true"  = return True
+          toBool "false" = return False
+          toBool v       = fail $ "Expected either true or false but got: " ++ unpack v
 
   parseJSON o = AT.typeMismatch "{ success :: Boolean}" o
 
