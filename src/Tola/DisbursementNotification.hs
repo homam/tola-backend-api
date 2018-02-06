@@ -122,10 +122,16 @@ instance A.FromJSON DisbursementNotification where
       then SuccessDisbursementNotification <$> parseTolaJSON j
       else FailureDisbursementNotification <$> (o .: "errormessage") <*> parseTolaJSON j
       where
+          isSuccess :: AT.Object -> AT.Parser Bool
           isSuccess o = do
-            (b :: Either String Bool)  <- maybeToRight "" <$> (o .:? "success")
-            (s :: Either String Bool)  <- readEither <$> (o .: "success")
-            return $ (const (const False ||| id $  s) ||| id) b
+            -- (s :: Either String Bool)  <- maybeToRight "" <$> (o .:? "success")
+            (b :: Either String Bool)  <- toBool <$> (o .: "success")
+            -- return $ (const (const False ||| id $  s) ||| id) b
+            return (const False ||| id $ b)
+
+          toBool "true"  = Right True
+          toBool "false" = Right False
+          toBool x       = Left $ "Cannot parse to bool " ++ x
 
   parseJSON o = AT.typeMismatch "{ success :: Boolean}" o
 
