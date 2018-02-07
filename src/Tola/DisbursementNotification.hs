@@ -12,14 +12,12 @@ module Tola.DisbursementNotification (
   , successAndError
 ) where
 
-import           Control.Arrow              ((|||))
-import           Data.Aeson                 ((.:), (.:?), (.=))
+import           Data.Aeson                 ((.:), (.=))
 import qualified Data.Aeson                 as A
 import qualified Data.Aeson.Types           as AT
 import qualified Data.ByteString.Lazy.Char8 as Char8
 import qualified Data.HashMap.Lazy          as HML
 import           Data.Time                  (UTCTime)
-import           Text.Read                  (readEither)
 import qualified Tola.ChargeRequest         as CR
 import           Tola.Common
 
@@ -33,7 +31,7 @@ data DisbursementNotificationDetails = DisbursementNotificationDetails {
   , amounttype        :: Text
   , channel           :: Text
   , currency          :: Text
-  , customerreference :: CustomerReference
+  , customerreference :: ArbitraryReference
   , date              :: UTCTime
   , mac               :: Mac
   , msisdn            :: Msisdn
@@ -145,7 +143,7 @@ mkDisbursementNotificationDetails
   :: Secret
   -> Amount
   -> Msisdn
-  -> CustomerReference
+  -> ArbitraryReference
   -> OperatorReference
   -> SourceReference
   -> Target
@@ -176,23 +174,18 @@ mkFailureDisbursementNotification = FailureDisbursementNotification
 fromChargeRequest
   :: Secret
   -> OperatorReference
-  -> CustomerReference
+  -> SourceReference
   -> UTCTime
   -> CR.ChargeRequest
   -> DisbursementNotification
-fromChargeRequest s oref cref d cr =
+fromChargeRequest s oref sref d cr =
   mkDisbursementNotification (Right ()) $ mkDisbursementNotificationDetails
     s
     (CR.amount cr)
     (CR.msisdn cr)
-    cref
-    oref
     (CR.sourcereference cr)
+    oref
+    sref
     (CR.target cr)
     "notification"
     d
-
-
-maybeToRight :: b -> Maybe a -> Either b a
-maybeToRight _ (Just x) = Right x
-maybeToRight y Nothing  = Left y

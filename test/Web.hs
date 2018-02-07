@@ -107,7 +107,7 @@ addLodgementNotificationTest = do
 addChargeRequestTest :: WaiSession ()
 addChargeRequestTest = do
   r <- getResponseBody <$> testGet200
-    "/api/charge/300000001/25.6"
+    "/api/charge/300000001/25.6/50% OFF ENDS NOW"
   return ()
 
 --
@@ -160,10 +160,10 @@ testChargeRequestAndNotification mockApi = do
         _ <- forkIO $ do
           threadDelay 10000 -- artificial delay to simulate async callback
           nowl <- getCurrentTime
-          ref <- mkReference . pack . toHex <$> getTime 1000
+          ref <- mkSourceReference . pack . toHex <$> getTime 1000
           let lnotification = TLodgementNotification.fromChargeRequest
                 secret
-                ref
+                sourceRef
                 (mkOperatorReference "operator.ref")
                 (mkCustomerReference "custoemr.ref")
                 Nothing
@@ -177,7 +177,7 @@ testChargeRequestAndNotification mockApi = do
           let dnotification = TDisbursementNotification.fromChargeRequest
                 secret
                 (mkOperatorReference "operator.ref")
-                (mkCustomerReference "custoemr.ref")
+                sourceRef
                 nowd
                 req
           -- Send dnotification callback back to our server

@@ -1,8 +1,6 @@
 {-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
-
 
 module Tola.ChargeRequest (
     ChargeRequest (..)
@@ -26,7 +24,7 @@ data ChargeRequest = ChargeRequest {
   , amounttype      :: Text -- ^ Whether the amount is in units or centile units (e.g. £ or pence)
   , channel         :: Text
   , currency        :: Text -- ^ The ISO 4217 currency code for this Transaction
-  , sourcereference :: SourceReference
+  , sourcereference :: ArbitraryReference
   , msisdn          :: Msisdn -- ^ The MSISDN for the Transaction, in full international format
   , requestType     :: Text
   , target          :: Target -- ^ The transfer target of the Transaction (e.g. Paybill, etc.)
@@ -48,7 +46,7 @@ mkChargeRequest
      -> Amount
      -> Msisdn
      -> UTCTime
-     -> SourceReference
+     -> ArbitraryReference
      -> ChargeRequest
 mkChargeRequest s t a m d sref = ChargeRequest {
       amount = a

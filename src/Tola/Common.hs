@@ -125,13 +125,16 @@ mkSourceReferenceFromInt = SourceReference . pack . show
 mkSourceReferenceFromString :: String -> SourceReference
 mkSourceReferenceFromString = SourceReference . pack
 
-
--- | Wraps  Reference in a newtype
-newtype Reference = Reference { unReference :: Text }
+-- | Wraps Arbitrary Reference in a newtype
+newtype ArbitraryReference = ArbitraryReference { unArbitraryReference :: Text }
   deriving (Show, Read, Eq, Ord, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
 
-mkReference :: Text -> Reference
-mkReference = Reference
+mkArbitraryReference :: Text -> ArbitraryReference
+mkArbitraryReference = ArbitraryReference
+
+mkArbitraryReferenceFromString :: String -> ArbitraryReference
+mkArbitraryReferenceFromString = ArbitraryReference . pack
+
 
 -- | Wraps Customer Reference in a newtype
 newtype CustomerReference = CustomerReference { unCustomerReference :: Text }

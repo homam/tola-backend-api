@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE QuasiQuotes                #-}
@@ -54,10 +55,10 @@ DBLodgementNotification sql=lodgement_notifications json
   creationTime Time.UTCTime default=now() MigrationOnly
   amount Amount sqltype=numeric(14,5)
   msisdn Msisdn
-  reference Reference
+  reference SourceReference
   customerReference CustomerReference
   operatorReference OperatorReference
-  sourceReference SourceReference
+  sourceReference ArbitraryReference
   date UTCTime
   rawNotification Text sqltype=json
 
@@ -68,7 +69,7 @@ DBDisbursementNotification sql=disbursement_notifications json
   errorMessage Text Maybe
   amount Amount sqltype=numeric(14,5)
   msisdn Msisdn
-  customerReference CustomerReference
+  customerReference ArbitraryReference
   operatorReference OperatorReference
   sourceReference SourceReference
   date UTCTime
@@ -144,18 +145,18 @@ updateChargeRequestWithResponse chargeRequestId  = runDb . update chargeRequestI
 
 insertLodgementNotificationAndupdateChargeRequest :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) =>
   TLodgementNotification.LodgementNotification -> t m (Key DBLodgementNotification)
-insertLodgementNotificationAndupdateChargeRequest n =
-  case toSqlKey . fromIntegral . snd <$> L.fromHexId 10000 (unpack $ unCustomerReference $ TLodgementNotification.customerreference n) of
-    Left _ -> runDb $ insert lodgementNotification
-    Right creqid -> runDb $ do
-      notificationId <- insert $ lodgementNotification
-      update
-        creqid
-        [
-            DBChargeRequestLodgementNotificationId =. Just notificationId
-          , DBChargeRequestState =. TChargeRequest.SuccessLodgementNotificationReceived
-        ]
-      return notificationId
+insertLodgementNotificationAndupdateChargeRequest n = runDb $
+  getChargeRequestBySourceReference (TLodgementNotification.reference n) >>= \case
+    Nothing                -> insert lodgementNotification -- just insert the notification
+    Just (Entity creqid _) -> do
+        notificationId <- insert lodgementNotification
+        update
+          creqid
+          [
+              DBChargeRequestLodgementNotificationId =. Just notificationId
+            , DBChargeRequestState =. TChargeRequest.SuccessLodgementNotificationReceived
+          ]
+        return notificationId
   where
     lodgementNotification =
       DBLodgementNotification
@@ -170,10 +171,10 @@ insertLodgementNotificationAndupdateChargeRequest n =
 
 insertDisbursementNotificationAndupdateChargeRequest :: (MonadTrans t, MonadReader AppState m, MonadIO (t m)) =>
   TDisbursementNotification.DisbursementNotification -> t m (Key DBDisbursementNotification)
-insertDisbursementNotificationAndupdateChargeRequest n =
-  case toSqlKey . fromIntegral . snd <$> L.fromHexId 10000 (unpack $ unCustomerReference $ TDisbursementNotification.customerreference d) of
-    Left _ -> runDb $ insert disbursementNotification
-    Right creqid -> runDb $ do
+insertDisbursementNotificationAndupdateChargeRequest n = runDb $
+  getChargeRequestBySourceReference (TDisbursementNotification.sourcereference d) >>= \case
+    Nothing                -> insert disbursementNotification -- just insert the notification
+    Just (Entity creqid _) -> do
       notificationId <- insert $ disbursementNotification
       update
         creqid
@@ -200,6 +201,11 @@ insertDisbursementNotificationAndupdateChargeRequest n =
 
 getChargeRequest :: GetDB DBChargeRequest DBChargeRequest
 getChargeRequest = getDbByIntId
+
+getChargeRequestBySourceReference :: forall (m :: * -> *) backend.
+  (BaseBackend backend ~ SqlBackend, PersistQueryRead backend, MonadIO m) =>
+  SourceReference -> ReaderT backend m (Maybe (Entity DBChargeRequest))
+getChargeRequestBySourceReference sref = selectFirst [DBChargeRequestReference ==. Just sref] [Desc DBChargeRequestId]
 
 --
 getChargeRequestStatus :: GetDB DBChargeRequest TChargeRequest.ChargeRequestStatus

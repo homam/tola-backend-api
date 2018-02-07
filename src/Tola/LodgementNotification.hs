@@ -23,8 +23,8 @@ data PLodgementNotification a t = LodgementNotification {
   , mac               :: Mac
   , msisdn            :: Msisdn
   , operatorreference :: OperatorReference
-  , reference         :: Reference
-  , sourcereference   :: SourceReference
+  , reference         :: SourceReference
+  , sourcereference   :: ArbitraryReference
   , target            :: Target
   , requestType       :: Text
 } deriving (Show, Read, Generic)
@@ -45,14 +45,14 @@ mkLodgementNotification
   -> Msisdn
   -> CustomerReference
   -> OperatorReference
-  -> SourceReference
+  -> ArbitraryReference
   -> Target
-  -> Reference
+  -> SourceReference
   -> Text
   -> Maybe Text
   -> UTCTime
   -> LodgementNotification
-mkLodgementNotification s a m cr opr sr t ref reqType accName d = LodgementNotification
+mkLodgementNotification s a m cr opr sref t ref reqType accName d = LodgementNotification
   { amount            = a
   , amounttype        = "unit"
   , channel           = "KENYA.SAFARICOM"
@@ -62,7 +62,7 @@ mkLodgementNotification s a m cr opr sr t ref reqType accName d = LodgementNotif
   , mac               = toMAC s m d
   , msisdn            = m
   , operatorreference = opr
-  , sourcereference   = sr
+  , sourcereference   = sref
   , reference         = ref
   , requestType       = reqType
   , accountname       = accName
@@ -71,14 +71,14 @@ mkLodgementNotification s a m cr opr sr t ref reqType accName d = LodgementNotif
 
 fromChargeRequest
   :: Secret
-  -> Reference
+  -> SourceReference
   -> OperatorReference
   -> CustomerReference
   -> Maybe Text
   -> UTCTime
   -> CR.ChargeRequest
   -> LodgementNotification
-fromChargeRequest s ref oref cref accName d cr =
+fromChargeRequest s sref oref cref accName d cr =
   mkLodgementNotification
   s
   (CR.amount cr)
@@ -87,7 +87,7 @@ fromChargeRequest s ref oref cref accName d cr =
   oref
   (CR.sourcereference cr)
   (CR.target cr)
-  ref
+  sref
   "lodgement"
   accName
   d

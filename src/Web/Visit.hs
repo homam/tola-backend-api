@@ -24,7 +24,6 @@ import qualified Data.Time.Clock                     as Clock
 import           Network.HTTP.Types.Status           (mkStatus, status404,
                                                       status500)
 import qualified Tola.ChargeRequest                  as TChargeRequest
-import qualified Tola.ChargeResponse                 as TChargeResponse
 import qualified Tola.Common                         as Tola
 import qualified Tola.TolaInterface                  as TolaInterface
 import           Web.Api.ChargeRequestClientResponse (mkChargeRequestClientResponse)
@@ -70,21 +69,22 @@ disbursementNotificationWeb = notificationWeb "disbursement_notification" "Disbu
 -- Client API
 
 chargeRequestWeb :: WebMApp ()
-chargeRequestWeb = getAndHead "/api/charge/:msisdn/:amount" $ do
+chargeRequestWeb = getAndHead "/api/charge/:msisdn/:amount/:arbitref" $ do
   addHeader "Access-Control-Allow-Origin" "*"
   -- reqid <- header "X-RequestId"
   amount' <- Tola.mkAmount . (toRational :: Double -> Rational) <$> param "amount"
   msisdn' <- Tola.mkMsisdn <$> param "msisdn"
+  arbitref <- Tola.mkArbitraryReference <$> param "arbitref"
   now <- liftIO Clock.getCurrentTime
   cridKey <- addChargeRequest amount' msisdn'
   crid <- liftIO $ (L.idToHex 10000 :: Integer -> IO String) . fromIntegral . fromSqlKey $ cridKey
   addScotchHeader "ChargeRequestId" (TL.pack crid)
   let target = Tola.mkTarget "850702"
   secret <- readSecret
-  let cr = TChargeRequest.mkChargeRequest secret target amount' msisdn' now (Tola.mkSourceReference . pack $ crid)
+  let cr = TChargeRequest.mkChargeRequest secret target amount' msisdn' now arbitref
   resp <- runTola (`TolaInterface.makeChargeRequest` cr)
   updateChargeRequestWithResponse cridKey resp
-  json $ (mkChargeRequestClientResponse (Tola.mkSourceReferenceFromString crid) resp)
+  json $ mkChargeRequestClientResponse (Tola.mkSourceReferenceFromString crid) resp
 
 checkChargeRequestWeb :: WebMApp ()
 checkChargeRequestWeb = getAndHead "/api/check_charge/:chargeRequestId" $ do
