@@ -1,4 +1,5 @@
-module Web.Logger where
+module Web.Logging.Logger where
+
 import qualified Data.ByteString as BS
 import qualified Data.Vault.Lazy as V
 

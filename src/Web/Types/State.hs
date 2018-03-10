@@ -1,8 +1,7 @@
 module Web.Types.State where
 
 import           Tola.RealTolaApi
-import           Web.Logger
-import           Web.Types.Logger
+import           Web.Logging.Logger
 
 data AppState = AppState {
   appVaultLoggerKey :: VaultLoggerKey

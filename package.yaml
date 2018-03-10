@@ -24,7 +24,9 @@ dependencies:
 - text
 - bytestring
 - cryptohash
+- AES
 - base16-bytestring
+- base64-bytestring
 - case-insensitive
 - mtl
 - transformers
@@ -38,6 +40,12 @@ dependencies:
 - wai
 - wai-extra
 - vault
+- blaze-builder
+- data-default-class 
+- wai-logger
+- ansi-terminal
+- fast-logger
+- lifted-base
 - scotty
 - http-types
 - persistent

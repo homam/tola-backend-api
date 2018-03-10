@@ -15,11 +15,9 @@ import qualified Data.ByteString.Char8     as Char8
 import           Data.ByteString.Lazy      (fromStrict, toStrict)
 import qualified Data.Maybe                as Y
 import qualified Network.HTTP.Conduit      as C
-import           Tola.Imports
-import           Tola.Types.Common
 --
 import           Control.Monad.Reader
-import           Web.Types.Logger
+import           Web.Logging.MonadLogger
 
 
 data TolaApiConfig = TolaApiConfig {
@@ -32,36 +30,35 @@ class HasTolaApiConfig t where
 
 newtype RealTolaApiT r m a = RealTolaApiT {
   unRealTolaApiT :: ReaderT r m a
-} deriving (Functor, Applicative, Monad, MonadTrans, MonadReader r, MonadIO)
+} deriving (Functor, Applicative, Monad, MonadTrans, MonadReader r, MonadIO, MonadLogger)
 
 runRealTolaApiT :: forall r (m :: * -> *) a . RealTolaApiT r m a -> r -> m a
 runRealTolaApiT = runReaderT . unRealTolaApiT
 
-instance (Monad m, HasLogger r, HasTolaApiConfig r, MonadReader r m, MonadIO m) => MonadTolaApi (RealTolaApiT r m) where
+instance (Monad m, MonadLogger m, HasTolaApiConfig r, MonadReader r m, MonadIO m) => MonadTolaApi (RealTolaApiT r m) where
   makeChargeRequest req = do
-    writeLog'  <- asks writeLog
+    writeLog "makeChargeRequest"
     config     <- asks tolaApiConfig
-    liftIO $ writeLog' "makeChargeRequest"
-    liftIO $ (Y.fromJust . A.decode . fromStrict) <$> post writeLog' (tolaApiBasicAuth config) (tolaApiUrl config) req
+    Y.fromJust . A.decode . fromStrict <$> post (tolaApiBasicAuth config) (tolaApiUrl config) req
 
 
 ---
 
-post :: A.ToJSON t => Logger -> (Char8.ByteString, Char8.ByteString) -> String -> t -> IO Char8.ByteString
-post writeLog' (user, pass) url obj = do
-  manager <- C.newManager C.tlsManagerSettings
-  r <- C.parseUrlThrow url
+post :: (MonadIO m, MonadLogger m, A.ToJSON t) => (Char8.ByteString, Char8.ByteString) -> String -> t -> m Char8.ByteString
+post (user, pass) url obj = do
+  manager <- liftIO $ C.newManager C.tlsManagerSettings
+  r <- liftIO $ C.parseUrlThrow url
   let json = A.encode obj
   let request = C.applyBasicAuth user pass $ r {
       C.secure = True
     , C.method = "POST"
     , C.requestBody = C.RequestBodyBS (toStrict json)
-    , C.requestHeaders = (C.requestHeaders r) ++ [("Content-Type",  "application/json")]
+    , C.requestHeaders = C.requestHeaders r ++ [("Content-Type",  "application/json")]
     }
-  writeLog' $ Char8.pack $ show request
-  writeLog' (toStrict json)
+  writeLog $ Char8.pack $ show request
+  writeLog (toStrict json)
   response <- C.httpLbs request manager
   let strictBody = toStrict $ C.responseBody response
-  writeLog' strictBody
+  writeLog strictBody
   return strictBody
 
