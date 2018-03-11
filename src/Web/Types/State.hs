@@ -10,3 +10,6 @@ data AppState = AppState {
 
 instance HasTolaApiConfig AppState where
   tolaApiConfig = appTolaApiConfig
+
+instance HasVaultLoggerKey AppState where
+  vaultLoggerKey = appVaultLoggerKey

@@ -15,9 +15,9 @@ import qualified Data.Text.Lazy          as TL
 import qualified Data.Vault.Lazy         as V
 import qualified Network.Wai             as W
 import           Tola.MonadTolaApi
+import           Web.Logging.Logger
 import           Web.Logging.MonadLogger
 import           Web.Scotty.Trans
-import           Web.Types.State
 
 
 type WebApp = forall (t :: * -> *)
@@ -29,13 +29,13 @@ type WebApp = forall (t :: * -> *)
   => ScottyT TL.Text t ()
 
 
-writeLog' :: forall (m :: * -> *) e
-   . (MonadIO m, MonadReader AppState m, ScottyError e)
+writeLog' :: forall (m :: * -> *) e r
+   . (MonadIO m, HasVaultLoggerKey r, MonadReader r m, ScottyError e)
   => Char8.ByteString
   -> ActionT e m ()
 writeLog' str = do
   req <- request
-  key <- lift $ asks appVaultLoggerKey
+  key <- lift $ asks vaultLoggerKey
   let logger = V.lookup key (W.vault req)
   liftIO $ case logger of
     Nothing      -> return ()
