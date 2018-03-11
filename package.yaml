@@ -31,6 +31,7 @@ dependencies:
 - mtl
 - transformers
 - containers
+- unordered-containers
 - aeson
 - http-conduit
 - hspec
@@ -48,8 +49,11 @@ dependencies:
 - lifted-base
 - scotty
 - http-types
+- resource-pool
 - persistent
+- persistent-template
 - persistent-postgresql
+- monad-control
 
 library:
   source-dirs: src

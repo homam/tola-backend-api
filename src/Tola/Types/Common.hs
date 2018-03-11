@@ -42,6 +42,9 @@ mkSecret = Secret
 mkSecret' :: String -> Secret
 mkSecret' = mkSecret . T.pack
 
+class HasTolaSecret t where
+  tolaSecret :: t -> Secret
+
 -- JSON utilities
 -- | Default Tola JSON options
 tolaJSONOptions :: AT.Options

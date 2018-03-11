@@ -329,19 +329,17 @@ fileLogType :: FilePath -> LogType
 fileLogType path =
     let spec = FileLogSpec path 10 10 in LogFile spec defaultBufSize
 
-withLogger
-    :: forall msg b
+withLogger :: forall msg b
      . ToLogStr msg
     => LogType
     -> ((msg -> IO ()) -> IO b)
     -> IO b
 withLogger logType f = do
     timeCache         <- newTimeCache myTimeFormat
-    (logger, cleanUp) <- newTimedFastLogger timeCache logType
-    let myLogger = void . logT logger
-    a <- f myLogger
-    cleanUp
-    return a
+    withTimedFastLogger
+        timeCache
+        logType
+        (\logger -> f $ void . logT logger)
   where
     myTimeFormat :: TimeFormat
     myTimeFormat = "%Y-%m-%dT%H:%M:%S%z"
