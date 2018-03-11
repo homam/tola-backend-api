@@ -1,21 +1,36 @@
+{-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 
-module Tola.Types.ChargeResponse (
-    ChargeResponse (..)
-  , mkSuccessChargeResponse
-  , mkFailureChargeResponse
-  , toApiError
-) where
+module Tola.Types.ChargeResponse
+where
 
-import           Data.Aeson        ((.:), (.=))
-import qualified Data.Aeson        as A
-import qualified Data.Aeson.Types  as AT
+import           Data.Aeson               ((.:), (.=))
+import qualified Data.Aeson               as A
+import qualified Data.Aeson.Types         as AT
 import           Tola.Imports
 import           Tola.Types.Common
+--
+import qualified Data.ByteString.Char8    as Char8
+import qualified Data.Map                 as Map
+import           Tola.Types.ChargeRequest
 
+
+data ChargeResponse = ChargeResponse {
+  _headers :: Map.Map String String
+, _json    :: ChargeRequest
+} deriving (Generic)
+
+instance A.FromJSON ChargeResponse where
+  parseJSON = parseTolaJSON
+
+instance A.ToJSON ChargeResponse where
+  toEncoding = toTolaEncoding
+
+
+{-
 
 data ChargeResponse =
     SuccessChargeResponse { reference :: SourceReference }
@@ -47,3 +62,4 @@ instance A.FromJSON ChargeResponse where
 toApiError :: ChargeResponse -> Either (ApiError ChargeResponse) ChargeResponse
 toApiError r@(FailureChargeResponse _ m) = Left $ mkApiErrorWithDetails (unpack m) r
 toApiError r                             = Right r
+-}

@@ -2,10 +2,10 @@ module Lib
     ( someFunc
     ) where
 
-import           Web.Types.WebM
+import           Web.RealWebApp
 import           Web.Visit
 
-app :: WebMApp IO ()
+app :: RealWebApp IO ()
 app = homeWeb
 
 someFunc :: IO ()

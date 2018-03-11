@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
@@ -19,6 +20,10 @@ module Web.Logging.DetailedLoggerMiddleware
     , Callback
     , IPAddrSource (..)
     , VaultLogger, VaultLoggerKey
+    , withDetailedLoggerMiddleware
+    , simpleStdoutLogType
+    , noneLogType
+    , fileLogType
     ) where
 
 import qualified Blaze.ByteString.Builder  as B
@@ -48,10 +53,12 @@ import           System.Console.ANSI
 import           System.IO                 (Handle, stdout)
 import           System.Log.FastLogger
 --
+import qualified Control.Concurrent.MVar   as M
 import           Control.Exception
+import           Control.Monad             (void)
 import qualified Data.CaseInsensitive      as CI
 import qualified Data.IORef                as IORef
-import qualified Data.List                 as L
+import           Data.Time.Clock.POSIX     (getPOSIXTime)
 import qualified Data.Vault.Lazy           as V
 import qualified Network.HTTP.Types.Status as Status
 import qualified Network.Wai               as W
@@ -171,8 +178,7 @@ getRequestBody req = do
   -- implementation ensures that each chunk is only returned
   -- once.
   ichunks <- newIORef body
-  let rbody = atomicModifyIORef ichunks $ \chunks ->
-         case chunks of
+  let rbody = atomicModifyIORef ichunks $ \case
              []  -> ([], S8.empty)
              x:y -> (y, x)
   let req' = req { requestBody = rbody }
@@ -198,9 +204,9 @@ detailedMiddleware' loggerVaultKey cb uniqueIdGenerator ansiColor ansiMethod ans
             (_, Just len)        | len <= 2048 -> getRequestBody req
             _                    -> return (req, [])
 
-    let headers' = foldl1 (<>) $ L.map ("\n    " <>) $ map (\(k, v) -> CI.foldedCase k <> ": " <> v) (W.requestHeaders req)
+    let headers' = foldl1 (<>) $ map (("\n    " <>) . (\ (k, v) -> CI.foldedCase k <> ": " <> v)) (W.requestHeaders req)
         -- path = W.rawPathInfo req
-        rawQueryString = W.rawQueryString req
+        rawQueryString' = W.rawQueryString req
     let reqbodylog _ = if null body then [""] else ansiColor White "  Request Body: " <> body <> ["\n"]
         reqbody = concatMap (either (const [""]) reqbodylog . decodeUtf8') body
     postParams <- if requestMethod req `elem` ["GET", "HEAD"]
@@ -223,7 +229,7 @@ detailedMiddleware' loggerVaultKey cb uniqueIdGenerator ansiColor ansiMethod ans
             params ++ reqbody ++
             -- ansiColor White "  Accept: " ++ [accept, "\n"] ++ l)
             ansiColor White "  Request Headers: " ++ [headers', "\n"] ++
-            ansiColor White "  Raw Query String: " ++ [rawQueryString, "\n"]
+            ansiColor White "  Raw Query String: " ++ [rawQueryString', "\n"]
             ++ l
             ++ ["\n----End>\n"]
             )
@@ -240,7 +246,7 @@ detailedMiddleware' loggerVaultKey cb uniqueIdGenerator ansiColor ansiMethod ans
 
         t1 <- getCurrentTime
         respBody <- responseBody rsp
-        vaultLogs <- IORef.readIORef logIORef
+        vaultLogs <- reverse <$> IORef.readIORef logIORef
 
         -- log the status of the response
         cb' $
@@ -263,7 +269,7 @@ detailedMiddleware' loggerVaultKey cb uniqueIdGenerator ansiColor ansiMethod ans
                 ansiColor White "\n Vault Logs: " ++ map ("\n    " <>) vaultLogs ++
                 [" ", pack $ show $ diffUTCTime t1 t0, "\n"] ++
                 ansiColor White "  Response Body: " ++ [respBody]
-            sendResponse (responseLBS Status.status500 [] (LBS.fromStrict $ respBody)))
+            sendResponse (responseLBS Status.status500 [] (LBS.fromStrict respBody)))
 
   where
     allPostParams body =
@@ -271,8 +277,7 @@ detailedMiddleware' loggerVaultKey cb uniqueIdGenerator ansiColor ansiMethod ans
             Nothing -> return ([], [])
             Just rbt -> do
                 ichunks <- newIORef body
-                let rbody = atomicModifyIORef ichunks $ \chunks ->
-                        case chunks of
+                let rbody = atomicModifyIORef ichunks $ \case
                             []  -> ([], S8.empty)
                             x:y -> (y, x)
                 sinkRequestBody lbsBackEnd rbt rbody
@@ -311,3 +316,70 @@ addHeader :: (BS.ByteString, BS.ByteString) -> Request -> Request
 addHeader (k, v) req = req {
     requestHeaders = (CI.mk k, v) : requestHeaders req
   }
+
+---
+
+simpleStdoutLogType :: LogType
+simpleStdoutLogType = LogStdout defaultBufSize
+
+noneLogType :: LogType
+noneLogType = LogNone
+
+fileLogType :: FilePath -> LogType
+fileLogType path =
+    let spec = FileLogSpec path 10 10 in LogFile spec defaultBufSize
+
+withLogger
+    :: forall msg b
+     . ToLogStr msg
+    => LogType
+    -> ((msg -> IO ()) -> IO b)
+    -> IO b
+withLogger logType f = do
+    timeCache         <- newTimeCache myTimeFormat
+    (logger, cleanUp) <- newTimedFastLogger timeCache logType
+    let myLogger = void . logT logger
+    a <- f myLogger
+    cleanUp
+    return a
+  where
+    myTimeFormat :: TimeFormat
+    myTimeFormat = "%Y-%m-%dT%H:%M:%S%z"
+
+    logT :: ToLogStr msg => TimedFastLogger -> msg -> IO ()
+    logT logger msg = logger $ \ft ->
+        toLogStr ft <> toLogStr (": " :: String) <> toLogStr msg <> "\n"
+
+
+withDetailedLoggerMiddleware ::
+     VaultLoggerKey
+  -> (W.Middleware -> IO b) -- ^ A callback function receiving a logger and a Scotty app. Use either 'runWebServer' or 'runWebM' for the callback.
+  -> LogType
+  -> IO b
+withDetailedLoggerMiddleware loggerVaultKey cb logType = do
+  let uniqueIdGenerator = uniqueTimestamp (100000 :: Double) =<< M.newMVar 0
+  withLogger
+    logType
+    ( \logger -> do
+      logger'' <- detailedMiddleware loggerVaultKey
+                                     logger
+                                     uniqueIdGenerator
+                                     True
+      cb logger''
+    )
+
+-- | Creates a unique timestamp generator, useful for generating unique integral Ids.
+-- > ut <- uniqueTimestamp 100000 =<< M.newMVar 0
+-- > ut >>= print
+--
+uniqueTimestamp :: (RealFrac p, Integral a) => p -> M.MVar a -> IO a
+uniqueTimestamp precision mv = do
+    t <- getTime precision
+    v <- M.takeMVar mv
+    let t' = if t <= v then v + 1 else t
+    M.putMVar mv t'
+    return t'
+
+getTime :: (Integral b, RealFrac a) => a -> IO b
+getTime precision =
+  round . (* precision) . fromRational . toRational <$> getPOSIXTime

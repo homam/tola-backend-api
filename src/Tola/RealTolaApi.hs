@@ -26,7 +26,7 @@ import           Tola.Types.ChargeResponse
 data TolaApiConfig = TolaApiConfig {
   tolaApiBasicAuth :: (Char8.ByteString, Char8.ByteString)
 , tolaApiUrl       :: String
-}
+} deriving Show
 
 class HasTolaApiConfig t where
   tolaApiConfig :: t -> TolaApiConfig
@@ -46,8 +46,13 @@ makeChargeRequest' :: forall (m :: * -> *) t.
   MonadReader t m, MonadLogger m) =>
   ChargeRequest -> m ChargeResponse
 makeChargeRequest' req = do
-  writeLog "makeChargeRequest"
   config <- asks tolaApiConfig
+  makeChargeRequest'' config req
+
+
+makeChargeRequest'' :: (MonadIO m, MonadLogger m) => TolaApiConfig -> ChargeRequest -> m ChargeResponse
+makeChargeRequest'' config req = do
+  writeLog "makeChargeRequest"
   Y.fromJust
     .   A.decode
     .   fromStrict
