@@ -18,6 +18,9 @@ import qualified Network.HTTP.Conduit      as C
 --
 import           Control.Monad.Reader
 import           Web.Logging.MonadLogger
+--
+import           Tola.Types.ChargeRequest
+import           Tola.Types.ChargeResponse
 
 
 data TolaApiConfig = TolaApiConfig {
@@ -36,10 +39,20 @@ runRealTolaApiT :: forall r (m :: * -> *) a . RealTolaApiT r m a -> r -> m a
 runRealTolaApiT = runReaderT . unRealTolaApiT
 
 instance (Monad m, MonadLogger m, HasTolaApiConfig r, MonadReader r m, MonadIO m) => MonadTolaApi (RealTolaApiT r m) where
-  makeChargeRequest req = do
-    writeLog "makeChargeRequest"
-    config     <- asks tolaApiConfig
-    Y.fromJust . A.decode . fromStrict <$> post (tolaApiBasicAuth config) (tolaApiUrl config) req
+  makeChargeRequest = makeChargeRequest'
+
+makeChargeRequest' :: forall (m :: * -> *) t.
+  (MonadIO m,  HasTolaApiConfig t,
+  MonadReader t m, MonadLogger m) =>
+  ChargeRequest -> m ChargeResponse
+makeChargeRequest' req = do
+  writeLog "makeChargeRequest"
+  config <- asks tolaApiConfig
+  Y.fromJust
+    .   A.decode
+    .   fromStrict
+    <$> post (tolaApiBasicAuth config) (tolaApiUrl config) req
+
 
 
 ---
@@ -61,4 +74,3 @@ post (user, pass) url obj = do
   let strictBody = toStrict $ C.responseBody response
   writeLog strictBody
   return strictBody
-

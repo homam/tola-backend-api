@@ -4,7 +4,7 @@
 
 module Tola.Types.ChargeRequest (
     ChargeRequest (..)
-  , mkChargeRequest
+  , mkChargeRequest, mkChargeRequest'
   , ChargeRequestState (..)
   , mkChargeRequestStatus, ChargeRequestStatus
 ) where
@@ -12,12 +12,12 @@ module Tola.Types.ChargeRequest (
 import           Control.Arrow         ((+++))
 import qualified Data.Aeson            as A
 import qualified Data.ByteString.Char8 as Char8
+import           Data.Time.Clock       (getCurrentTime)
 import           Database.Persist
 import           Database.Persist.Sql
 import           Text.Read             (readEither)
 import           Tola.Imports
 import           Tola.Types.Common
-
 
 data ChargeRequest = ChargeRequest {
     amount          :: Amount
@@ -60,6 +60,17 @@ mkChargeRequest s t a m d sref = ChargeRequest
   , mac             = toMAC s m d
   , date            = d
   }
+
+mkChargeRequest' ::
+    Secret
+  -> Target
+  -> Amount
+  -> Msisdn
+  -> ArbitraryReference
+  -> IO ChargeRequest
+mkChargeRequest' s t a m sref = do
+  d <- getCurrentTime
+  return $ mkChargeRequest s t a m d sref
 
 -- | 'ChargeRequestState' is equivalent to the similar Enum type in 'tola' PotgreSQL database.
 data ChargeRequestState =
