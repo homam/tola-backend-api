@@ -65,7 +65,7 @@ instance MonadLogger (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
   writeLog = liftIO . Char8.putStrLn -- writeLog'
 
 instance MonadTolaDatabase (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
-  insertChargeRequest = insertChargeRequest'
+  insertChargeRequest = runDb . insertChargeRequest'
 
 
 instance MonadTolaApi (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where

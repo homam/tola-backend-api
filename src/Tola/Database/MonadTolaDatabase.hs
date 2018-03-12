@@ -1,22 +1,25 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TypeFamilies          #-}
 
-module Tola.Database.MonadTolaDatabase where
+module Tola.Database.MonadTolaDatabase (
+  module Tola.Database.MonadTolaDatabase
+, withDbPool
+) where
 
 import           Control.Monad.IO.Class              (MonadIO (..), liftIO)
-import           Control.Monad.Logger                (runNoLoggingT)
 import           Control.Monad.Reader                (asks)
 import           Control.Monad.Reader.Class          (MonadReader)
 import           Control.Monad.Trans.Class           (MonadTrans, lift)
-import           Control.Monad.Trans.Control         (MonadBaseControl)
 import           Control.Monad.Trans.Reader          (ReaderT (..))
 import           Data.Pool                           (Pool)
 import           Database.Persist
 import           Database.Persist.Postgresql
+import           Tola.Database.Helpers
 import           Tola.Database.Model
 import qualified Tola.Types.ChargeRequest            as ChargeRequest
 import qualified Tola.Types.ChargeResponse           as ChargeResponse
@@ -32,20 +35,115 @@ class HasDbPool t where
 class MonadTolaDatabase m where
   insertChargeRequest :: ChargeRequest.ChargeRequest -> m (Key DBChargeRequest)
 
-insertChargeRequest' :: forall r (t :: (* -> *) -> * -> *) (m :: * -> *)
-   . (MonadTrans t, MonadReader r m, MonadIO (t m), HasDbPool r)
-  => ChargeRequest.ChargeRequest -> t m (Key DBChargeRequest)
-insertChargeRequest' req = runDb $
-  insert $ DBChargeRequest  Nothing
-                            Nothing
-                            (ChargeRequest.amount req)
-                            (ChargeRequest.msisdn req)
-                            ChargeRequest.ChargeRequestCreated
-                            Nothing
-                            Nothing
-                            Nothing
-                            Nothing
+--
 
+insertChargeRequest' :: Insert ChargeRequest.ChargeRequest DBChargeRequest
+insertChargeRequest' req = insert $
+  DBChargeRequest   Nothing
+                    Nothing
+                    (ChargeRequest.amount req)
+                    (ChargeRequest.msisdn req)
+                    ChargeRequest.ChargeRequestCreated
+                    Nothing
+                    Nothing
+                    Nothing
+                    Nothing
+
+updateChargeRequestWithResponse :: UpdateWithKey DBChargeRequest ChargeResponse.ChargeResponse
+updateChargeRequestWithResponse chargeRequestId =
+  update chargeRequestId . fields
+ where
+  fields (ChargeResponse.SuccessChargeResponse ref) =
+    [ DBChargeRequestState =. ChargeRequest.SuccessChargeResponseReceived
+    , DBChargeRequestReference =. Just ref
+    ]
+  fields (ChargeResponse.FailureChargeResponse c m) =
+    [ DBChargeRequestState =. ChargeRequest.FailChargeResponseReceived
+    , DBChargeRequestResponseErrorCode =. Just c
+    , DBChargeRequestResponseErrorMessage =. Just m
+    ]
+
+insertDisbursementNotificationAndupdateChargeRequest':: Insert DisbursementNotification.DisbursementNotification DBDisbursementNotification
+insertDisbursementNotificationAndupdateChargeRequest' n = getChargeRequestBySourceReference (DisbursementNotification.sourcereference d)
+    >>= \case
+          Nothing                -> insert disbursementNotification -- just insert the notification
+          Just (Entity creqid _) -> do
+            notificationId <- insert $ disbursementNotification
+            update
+              creqid
+              [ DBChargeRequestDisbursementNotificationId =. Just notificationId
+              , DBChargeRequestState =. if s
+                then ChargeRequest.SuccessDisbursementNotificationReceived
+                else ChargeRequest.FailDisbursementNotificationReceived
+              ]
+            return notificationId
+ where
+  disbursementNotification = DBDisbursementNotification
+    s
+    e
+    (DisbursementNotification.amount d)
+    (DisbursementNotification.msisdn d)
+    (DisbursementNotification.customerreference d)
+    (DisbursementNotification.operatorreference d)
+    (DisbursementNotification.sourcereference d)
+    (DisbursementNotification.date d)
+    (toSqlJSON n)
+
+  d      = DisbursementNotification.details n
+  (s, e) = DisbursementNotification.successAndError n
+
+insertLodgementNotificationAndupdateChargeRequest :: Insert LodgementNotification.LodgementNotification DBLodgementNotification
+insertLodgementNotificationAndupdateChargeRequest n = getChargeRequestBySourceReference (LodgementNotification.reference n)
+    >>= \case
+          Nothing                -> insert lodgementNotification -- just insert the notification
+          Just (Entity creqid _) -> do
+            notificationId <- insert lodgementNotification
+            update
+              creqid
+              [ DBChargeRequestLodgementNotificationId =. Just notificationId
+              , DBChargeRequestState
+                =. ChargeRequest.SuccessLodgementNotificationReceived
+              ]
+            return notificationId
+ where
+  lodgementNotification = DBLodgementNotification
+    (LodgementNotification.amount n)
+    (LodgementNotification.msisdn n)
+    (LodgementNotification.reference n)
+    (LodgementNotification.customerreference n)
+    (LodgementNotification.operatorreference n)
+    (LodgementNotification.sourcereference n)
+    (LodgementNotification.date n)
+    (toSqlJSON n)
+
+--
+
+getChargeRequest :: Get Int DBChargeRequest
+getChargeRequest = getById
+
+getChargeRequestBySourceReference :: Get SourceReference (Entity DBChargeRequest)
+getChargeRequestBySourceReference sref =
+  selectFirst [DBChargeRequestReference ==. Just sref] [Desc DBChargeRequestId]
+
+getChargeRequestStatus :: Get Int ChargeRequest.ChargeRequestStatus
+getChargeRequestStatus = fmap (fmap go) . getChargeRequest
+ where
+  go o = ChargeRequest.mkChargeRequestStatus
+    (dBChargeRequestState o)
+    (dBChargeRequestReference o)
+    (dBChargeRequestResponseErrorMessage o)
+
+
+--
+
+{-
+type GetDB r r' = forall t m a
+   . (HasDbPool r, MonadIO (t m), MonadReader r m, MonadTrans t, ToBackendKey SqlBackend r, Integral a)
+  => a -> t m (Maybe r')
+
+getDbByIntId :: GetDB r r
+getDbByIntId creqid = runDb (get $ toSqlKey . fromIntegral $ creqid)
+-}
 
 runDb ::
      (HasDbPool r, MonadIO (t m), MonadReader r m, MonadTrans t)
@@ -54,16 +152,3 @@ runDb ::
 runDb query = do
   pool <- lift $ asks dbPool
   liftIO $ runSqlPool query pool
-
-
-withDbPool ::
-     ( BaseBackend backend ~ SqlBackend
-     , IsPersistBackend backend
-     , MonadBaseControl IO m
-     , MonadIO m
-     )
-  => ConnectionString
-  -> (Pool backend -> IO a)
-  -> m a
-withDbPool connStr appf =
-  runNoLoggingT $ withPostgresqlPool connStr 10 $ \pool -> liftIO $ appf pool
