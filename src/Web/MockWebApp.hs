@@ -37,13 +37,17 @@ import qualified Data.ByteString.Char8                as Char8
 --
 import           Web.Testing.Helpers
 import           Web.Visit
+--
+import           Tola.Database.Model
 
 
-data AppState s = AppState { appStateVaultKeyLogger :: VaultLoggerKey, appStateTolaSecret :: Secret, appStateSync :: MVar s }
+data AppState s = AppState { appStateVaultKeyLogger :: VaultLoggerKey, appStateTolaSecret :: Secret, appStateSync :: MVar s, appStateDbPool :: TolaPool }
 instance HasVaultLoggerKey (AppState s) where
   vaultLoggerKey = appStateVaultKeyLogger
 instance HasTolaSecret (AppState s) where
   tolaSecret = appStateTolaSecret
+instance HasDbPool (AppState s) where
+  dbPool = appStateDbPool
 
 
 newtype MockWebAppT r m a = MockWebAppT { unMockWebAppT ::  ReaderT r m a }
@@ -54,6 +58,10 @@ type MockWebApp r m a = ScottyT TL.Text (MockWebAppT r m) ()
 
 instance MonadLogger (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
   writeLog = liftIO . Char8.putStrLn -- writeLog'
+
+instance MonadTolaDatabase (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
+  insertChargeRequest = insertChargeRequest'
+
 
 instance MonadTolaApi (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
   makeChargeRequest req = do
@@ -101,17 +109,21 @@ runWeb ::
 runWeb appState app =
   runReaderT (unMockWebAppT app) appState
 
+
 runWebServer :: MVar () -> MockWebApp (AppState ()) IO b -> IO Application
 runWebServer sync app = do
   loggerVaultKey <- V.newKey
   withDetailedLoggerMiddleware
     loggerVaultKey
-    ( \ logger ->
-      scottyAppT
-        (runWeb $ AppState loggerVaultKey (mkSecret "tola_secret") sync) --TODO: get secret from Env
+    ( \logger -> withDbPool
+      "host=localhost dbname=tola" --TODO: get connection string from Env
+      ( \pool -> scottyAppT
+        (runWeb $ AppState loggerVaultKey (mkSecret "tola_secret") sync pool) --TODO: get secret from Env
         (middleware logger >> app)
+      )
     )
     simpleStdoutLogType
+
 
 myApp :: MockWebApp (AppState ()) IO ()
 myApp = homeWeb

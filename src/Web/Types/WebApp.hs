@@ -14,6 +14,7 @@ import qualified Data.ByteString.Char8   as Char8
 import qualified Data.Text.Lazy          as TL
 import qualified Data.Vault.Lazy         as V
 import qualified Network.Wai             as W
+import           Tola.Database.Model
 import           Tola.MonadTolaApi
 import           Web.Logging.Logger
 import           Web.Logging.MonadLogger
@@ -25,6 +26,7 @@ type WebApp = forall (t :: * -> *)
        MonadLogger (ActionT TL.Text t)
      , MonadTolaApi (ActionT TL.Text t)
      , MonadIO t
+     , MonadTolaDatabase (ActionT TL.Text t)
      )
   => ScottyT TL.Text t ()
 

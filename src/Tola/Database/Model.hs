@@ -15,6 +15,7 @@
 module Tola.Database.Model where
 
 import           Control.Monad.IO.Class              (MonadIO (..), liftIO)
+import           Control.Monad.Logger                (runNoLoggingT)
 import           Control.Monad.Reader                (asks)
 import           Control.Monad.Reader.Class          (MonadReader)
 import           Control.Monad.Trans.Class           (MonadTrans, lift)
@@ -76,3 +77,47 @@ DBChargeRequest sql=charge_request json
   responseErrorMessage Text Maybe
   rawResponse Text Maybe sqltype=json
 |]
+
+type TolaPool = Pool SqlBackend
+
+class HasDbPool t where
+  dbPool :: t -> TolaPool
+
+class MonadTolaDatabase m where
+  insertChargeRequest :: ChargeRequest.ChargeRequest -> m (Key DBChargeRequest)
+
+insertChargeRequest' :: forall r (t :: (* -> *) -> * -> *) (m :: * -> *)
+   . (MonadTrans t, MonadReader r m, MonadIO (t m), HasDbPool r)
+  => ChargeRequest.ChargeRequest -> t m (Key DBChargeRequest)
+insertChargeRequest' req = runDb $
+  insert $ DBChargeRequest  Nothing
+                            Nothing
+                            (ChargeRequest.amount req)
+                            (ChargeRequest.msisdn req)
+                            ChargeRequest.ChargeRequestCreated
+                            Nothing
+                            Nothing
+                            Nothing
+                            Nothing
+
+
+runDb ::
+     (HasDbPool r, MonadIO (t m), MonadReader r m, MonadTrans t)
+  => ReaderT SqlBackend IO b
+  -> t m b
+runDb query = do
+  pool <- lift $ asks dbPool
+  liftIO $ runSqlPool query pool
+
+
+withDbPool ::
+     ( BaseBackend backend ~ SqlBackend
+     , IsPersistBackend backend
+     , MonadBaseControl IO m
+     , MonadIO m
+     )
+  => ConnectionString
+  -> (Pool backend -> IO a)
+  -> m a
+withDbPool connStr appf =
+  runNoLoggingT $ withPostgresqlPool connStr 10 $ \pool -> liftIO $ appf pool
