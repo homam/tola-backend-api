@@ -17,8 +17,8 @@ import           Control.Monad.Reader.Class          (MonadReader)
 import           Control.Monad.Trans.Class           (MonadTrans, lift)
 import           Control.Monad.Trans.Reader          (ReaderT (..))
 import           Data.Pool                           (Pool)
-import           Database.Persist
-import           Database.Persist.Postgresql
+import           Database.Persist                    hiding (Update)
+import           Database.Persist.Postgresql         hiding (Update)
 import           Tola.Database.Helpers
 import           Tola.Database.Model
 import qualified Tola.Types.ChargeRequest            as ChargeRequest
@@ -34,6 +34,7 @@ class HasDbPool t where
 
 class MonadTolaDatabase m where
   insertChargeRequest :: ChargeRequest.ChargeRequest -> m (Key DBChargeRequest)
+  updateChargeRequestWithResponse :: Integer -> ChargeResponse.ChargeResponse -> m ()
 
 --
 
@@ -49,9 +50,9 @@ insertChargeRequest' req = insert $
                     Nothing
                     Nothing
 
-updateChargeRequestWithResponse :: UpdateWithKey DBChargeRequest ChargeResponse.ChargeResponse
-updateChargeRequestWithResponse chargeRequestId =
-  update chargeRequestId . fields
+updateChargeRequestWithResponse' :: Update Integer ChargeResponse.ChargeResponse
+updateChargeRequestWithResponse' chargeRequestId =
+  update (toSqlKey $ fromIntegral chargeRequestId) . fields
  where
   fields (ChargeResponse.SuccessChargeResponse ref) =
     [ DBChargeRequestState =. ChargeRequest.SuccessChargeResponseReceived

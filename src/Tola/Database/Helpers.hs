@@ -29,6 +29,10 @@ type UpdateWithKey k i = forall (m :: * -> *) backend
    . (BaseBackend backend ~ SqlBackend, PersistStoreWrite backend, MonadIO m)
   => Key k -> i -> ReaderT backend m ()
 
+type Update k i = forall (m :: * -> *) backend
+   . (BaseBackend backend ~ SqlBackend, PersistStoreWrite backend, MonadIO m)
+  => k -> i -> ReaderT backend m ()
+
 
 getById :: (Integral i, PersistEntityBackend o ~ SqlBackend, PersistEntity o, ToBackendKey SqlBackend o) => Get i o
 getById creqid = get $ toSqlKey . fromIntegral $ creqid
