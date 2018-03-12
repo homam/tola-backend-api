@@ -41,7 +41,11 @@ import           Web.Visit
 import           Tola.Database.Model
 
 
-data AppState s = AppState { appStateVaultKeyLogger :: VaultLoggerKey, appStateTolaSecret :: Secret, appStateSync :: MVar s, appStateDbPool :: TolaPool }
+data AppState s = AppState {
+    appStateVaultKeyLogger :: VaultLoggerKey
+  , appStateTolaSecret :: Secret, appStateSync :: MVar s
+  , appStateDbPool :: TolaPool
+  }
 instance HasVaultLoggerKey (AppState s) where
   vaultLoggerKey = appStateVaultKeyLogger
 instance HasTolaSecret (AppState s) where
