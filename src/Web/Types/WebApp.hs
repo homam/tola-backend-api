@@ -7,14 +7,21 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 
-module Web.Types.WebApp where
+module Web.Types.WebApp (
+    WebApp, writeLog'
+  , MonadTolaDatabase (..)
+  , MonadLogger (..)
+  , MonadTolaApi (..)
+  )
+
+where
 
 import           Control.Monad.Reader
-import qualified Data.ByteString.Char8   as Char8
-import qualified Data.Text.Lazy          as TL
-import qualified Data.Vault.Lazy         as V
-import qualified Network.Wai             as W
-import           Tola.Database.Model
+import qualified Data.ByteString.Char8           as Char8
+import qualified Data.Text.Lazy                  as TL
+import qualified Data.Vault.Lazy                 as V
+import qualified Network.Wai                     as W
+import           Tola.Database.MonadTolaDatabase
 import           Tola.MonadTolaApi
 import           Web.Logging.Logger
 import           Web.Logging.MonadLogger

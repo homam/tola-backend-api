@@ -38,7 +38,7 @@ import qualified Data.ByteString.Char8                as Char8
 import           Web.Testing.Helpers
 import           Web.Visit
 --
-import           Tola.Database.Model
+import           Tola.Database.MonadTolaDatabase
 
 
 data AppState s = AppState {

@@ -14,13 +14,7 @@ import           Control.Monad.Reader.Class          (MonadReader)
 import           Control.Monad.Trans.Class           (MonadTrans, lift)
 import           Control.Monad.Trans.Control         (MonadBaseControl)
 import           Control.Monad.Trans.Reader          (ReaderT (..))
-import qualified Data.Aeson                          as A
-import qualified Data.ByteString.Lazy                as BL
 import           Data.Pool                           (Pool)
-import           Data.Text                           (Text)
-import qualified Data.Text.Encoding                  as E
-import qualified Data.Time                           as Time
-import qualified Data.Time.Clock.POSIX               as POSIX
 import           Database.Persist
 import           Database.Persist.Postgresql
 import           Tola.Database.Model

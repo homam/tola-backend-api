@@ -4,11 +4,8 @@
 module Web.Visit where
 
 import           Control.Monad.Trans      (liftIO)
-import           Tola.Database.Model
-import           Tola.MonadTolaApi
 import           Tola.Types.ChargeRequest
 import           Tola.Types.Common
-import           Web.Logging.MonadLogger
 import           Web.Scotty.Trans
 import           Web.ScottyHelpers
 import           Web.Types.WebApp

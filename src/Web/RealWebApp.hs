@@ -13,7 +13,7 @@ module Web.RealWebApp where
 import           Control.Monad.Reader
 import qualified Data.Text.Lazy                       as TL
 import qualified Data.Vault.Lazy                      as V
-import           Tola.Database.Model
+import           Tola.Database.MonadTolaDatabase
 import           Tola.MonadTolaApi
 import           Tola.RealTolaApi
 import           Web.Logging.DetailedLoggerMiddleware (simpleStdoutLogType, withDetailedLoggerMiddleware)
