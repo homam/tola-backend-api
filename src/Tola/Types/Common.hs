@@ -14,6 +14,7 @@ import qualified Crypto.Hash.MD5        as MD5
 import qualified Data.Aeson             as A
 import qualified Data.Aeson.Types       as AT
 import qualified Data.ByteString.Base16 as B16
+import qualified Data.HashMap.Lazy      as HashMap
 import qualified Data.Text              as T
 import           Data.Text.Encoding     as E
 import           Data.Time              (UTCTime)
@@ -27,6 +28,9 @@ import           Numeric                (readFloat, showFFloat)
 -- | MD5 hash
 hashText :: T.Text -> T.Text
 hashText = E.decodeUtf8 . B16.encode . MD5.hash . E.encodeUtf8
+
+class HasTolaTime t where
+  tolaTime :: t -> UTCTime
 
 -- | Creates a MAC digest code using MD5 hash function according to Tola docs v1.9
 toMAC :: Secret -> Msisdn -> UTCTime -> Mac
@@ -45,6 +49,27 @@ mkSecret' = mkSecret . T.pack
 class HasTolaSecret t where
   tolaSecret :: t -> Secret
 
+mergeAeson :: [A.Value] -> A.Value
+mergeAeson = A.Object . HashMap.unions . map (\(A.Object x) -> x)
+
+data MACed t = MACed Secret t deriving (Generic)
+
+instance (Generic r, A.ToJSON r, HasTolaMsisdn r, HasTolaTime r) => A.ToJSON (MACed r) where
+  toJSON (MACed s r) = mergeAeson
+    [ A.object ["mac" A..= toMAC s (tolaMsisdn r) (tolaTime r)]
+    , A.toJSON r
+    ]
+
+class ToMACed m where
+  toMACed :: r -> m (MACed r)
+
+addMAC ::
+     (AT.ToJSON a, HasTolaTime t, HasTolaMsisdn t, HasTolaSecret t)
+  => a
+  -> t
+  -> AT.Value
+addMAC a r = mergeAeson [A.object ["mac" A..= toMAC (tolaSecret r) (tolaMsisdn r) (tolaTime r)], A.toJSON a]
+
 -- JSON utilities
 -- | Default Tola JSON options
 tolaJSONOptions :: AT.Options
@@ -58,14 +83,6 @@ tolaJSONOptions = A.defaultOptions
     fixType = \case
       "requestType" -> "type"
       x             -> x
-
--- | Use to create 'ToJSON' instances
--- @
--- toEncoding = toTolaEncoding
--- @
-toTolaEncoding
-  :: (AT.GToEncoding AT.Zero (Rep a), Generic a) => a -> AT.Encoding
-toTolaEncoding = A.genericToEncoding tolaJSONOptions
 
 toTolaJSON :: (Generic a, AT.GToJSON AT.Zero (Rep a)) => a -> AT.Value
 toTolaJSON = A.genericToJSON tolaJSONOptions
@@ -117,6 +134,9 @@ newtype Msisdn = Msisdn { unMsisdn :: T.Text }
 
 mkMsisdn :: T.Text -> Msisdn
 mkMsisdn = Msisdn
+
+class HasTolaMsisdn t where
+  tolaMsisdn :: t -> Msisdn
 
 -- | Wraps Source Reference in a newtype
 newtype SourceReference = SourceReference { unSourceReference :: T.Text }

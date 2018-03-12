@@ -16,14 +16,10 @@ import           Data.Aeson                 ((.:), (.=))
 import qualified Data.Aeson                 as A
 import qualified Data.Aeson.Types           as AT
 import qualified Data.ByteString.Lazy.Char8 as Char8
-import qualified Data.HashMap.Lazy          as HML
 import           Data.Time                  (UTCTime)
 import           Tola.Imports
 import qualified Tola.Types.ChargeRequest   as CR
 import           Tola.Types.Common
-
-mergeAeson :: [A.Value] -> A.Value
-mergeAeson = A.Object . HML.unions . map (\(A.Object x) -> x)
 
 -- | A Disbursement Notification occurs when an asynchronous Disbursement Request is received and queued by Tola,
 -- and subsequently the EMoney supplier confirms that the transaction has completed.

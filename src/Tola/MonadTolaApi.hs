@@ -13,6 +13,8 @@ import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.RWS
 import           Control.Monad.Trans.State
 import           Control.Monad.Trans.Writer
+--
+import           Tola.Types.Common
 
 class Monad m => MonadTolaApi m where
   makeChargeRequest :: ChargeRequest -> m ChargeResponse

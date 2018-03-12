@@ -28,11 +28,17 @@ data ChargeRequest = ChargeRequest {
   , msisdn          :: Msisdn -- ^ The MSISDN for the Transaction, in full international format
   , requestType     :: Text
   , target          :: Target -- ^ The transfer target of the Transaction (e.g. Paybill, etc.)
-  , mac             :: Mac
+  -- , mac             :: Mac
   , date            :: UTCTime
 } deriving (Show, Generic)
 
-instance A.ToJSON ChargeRequest where toEncoding = toTolaEncoding
+instance HasTolaMsisdn ChargeRequest where
+  tolaMsisdn = msisdn
+
+instance HasTolaTime ChargeRequest where
+  tolaTime = date
+
+instance A.ToJSON ChargeRequest where toJSON = toTolaJSON
 instance A.FromJSON ChargeRequest where parseJSON = parseTolaJSON
 
 -- | Create a new Tola Charge Request.
@@ -40,15 +46,15 @@ instance A.FromJSON ChargeRequest where parseJSON = parseTolaJSON
 --
 -- >>> (A.encode  <$> mkChargeRequest (mkSecret "secret") (Amount 24) "reference" (Msisdn "30387162221") "800123" <$> getCurrentTime)
 --
-mkChargeRequest
-  :: Secret
-  -> Target
+mkChargeRequest ::
+    -- Secret
+     Target
   -> Amount
   -> Msisdn
   -> UTCTime
   -> ArbitraryReference
   -> ChargeRequest
-mkChargeRequest s t a m d sref = ChargeRequest
+mkChargeRequest t a m d sref = ChargeRequest
   { amount          = a
   , amounttype      = "unit"
   , channel         = "KENYA.SAFARICOM"
@@ -57,20 +63,20 @@ mkChargeRequest s t a m d sref = ChargeRequest
   , msisdn          = m
   , requestType     = "charge"
   , target          = t
-  , mac             = toMAC s m d
+  -- , mac             = toMAC s m d
   , date            = d
   }
 
 mkChargeRequest' ::
-    Secret
-  -> Target
+    -- Secret
+     Target
   -> Amount
   -> Msisdn
   -> ArbitraryReference
   -> IO ChargeRequest
-mkChargeRequest' s t a m sref = do
+mkChargeRequest' t a m sref = do
   d <- getCurrentTime
-  return $ mkChargeRequest s t a m d sref
+  return $ mkChargeRequest t a m d sref
 
 -- | 'ChargeRequestState' is equivalent to the similar Enum type in 'tola' PotgreSQL database.
 data ChargeRequestState =
@@ -99,7 +105,7 @@ data ChargeRequestStatus = ChargeRequestStatus {
 } deriving (Show, Read, Generic)
 
 instance  A.ToJSON ChargeRequestStatus where
-  toEncoding = toTolaEncoding
+  toJSON = toTolaJSON
 
 instance A.FromJSON ChargeRequestStatus where
   parseJSON = parseTolaJSON

@@ -34,7 +34,7 @@ data PLodgementNotification a t = LodgementNotification {
 type LodgementNotification = PLodgementNotification Amount UTCTime
 
 instance (A.ToJSON a, A.ToJSON t) => A.ToJSON (PLodgementNotification a t) where
-  toEncoding = toTolaEncoding
+  toJSON = toTolaJSON
 
 instance (A.FromJSON a, A.FromJSON t) => A.FromJSON (PLodgementNotification a t) where
   parseJSON = parseTolaJSON

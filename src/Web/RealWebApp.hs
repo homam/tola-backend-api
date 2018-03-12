@@ -16,6 +16,8 @@ import qualified Data.Vault.Lazy                      as V
 import           Tola.Database.MonadTolaDatabase
 import           Tola.MonadTolaApi
 import           Tola.RealTolaApi
+import           Tola.Types.Common                    (MACed (..), ToMACed (..),
+                                                       mkSecret)
 import           Web.Logging.DetailedLoggerMiddleware (simpleStdoutLogType, withDetailedLoggerMiddleware)
 import           Web.Logging.Logger
 import           Web.Logging.MonadLogger
@@ -52,7 +54,10 @@ instance MonadTolaDatabase (ActionT TL.Text (RealWebAppT IO)) where
 instance MonadTolaApi (ActionT TL.Text (RealWebAppT IO)) where
   makeChargeRequest req = do
     config <- lift $ asks appTolaApiConfig
-    makeChargeRequest'' config req
+    makeChargeRequest'' config =<< toMACed req
+
+instance ToMACed (ActionT TL.Text (RealWebAppT IO)) where
+  toMACed r = (`MACed` r) . _tolaSecret <$> lift (asks appTolaApiConfig)
 
 
 runWeb ::
@@ -82,6 +87,7 @@ runWebServer port app = do
           TolaApiConfig
             { tolaApiBasicAuth = ("", "")
             , tolaApiUrl       = "https://httpbin.org/post" --"https://requestb.in/13gb79v1"
+            , _tolaSecret = mkSecret ""
             }
           pool
         )

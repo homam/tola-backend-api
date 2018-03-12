@@ -6,9 +6,7 @@ import qualified Data.List                 as List
 import           Data.Text                 (Text)
 import qualified Data.Text.Encoding        as E
 import           Network.HTTP.Types.Header (HeaderName)
-import           Network.Wai
 import qualified Network.Wai.Test          as WT
-import           Test.Hspec
 import           Test.Hspec.Wai
 
 test200
@@ -28,8 +26,8 @@ testGet200 :: Text -> WaiSession WT.SResponse
 testGet200 url = test200 url get
 
 printSResponseHeaders, printSResponseBody :: WT.SResponse -> IO ()
-printSResponseHeaders (WT.SResponse s h b) = print h
-printSResponseBody (WT.SResponse s h b) = print b
+printSResponseHeaders (WT.SResponse _ h _) = print h
+printSResponseBody (WT.SResponse _ _ b) = print b
 
 getHeader :: HeaderName -> WT.SResponse -> Maybe Char8.ByteString
 getHeader name (WT.SResponse _ h _) = snd <$> List.find ((== name) . fst) h
@@ -40,4 +38,4 @@ getHeaderM name r = case getHeader name r of
   Nothing -> error "Header not found"
 
 getResponseBody :: WT.SResponse -> BL.ByteString
-getResponseBody (WT.SResponse s h b) = b
+getResponseBody (WT.SResponse _ _ b) = b

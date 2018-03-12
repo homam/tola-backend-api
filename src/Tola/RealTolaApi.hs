@@ -21,16 +21,25 @@ import           Web.Logging.MonadLogger
 --
 import           Tola.Types.ChargeRequest
 import           Tola.Types.ChargeResponse
+import           Tola.Types.Common
 
 
 data TolaApiConfig = TolaApiConfig {
   tolaApiBasicAuth :: (Char8.ByteString, Char8.ByteString)
 , tolaApiUrl       :: String
+, _tolaSecret      :: Secret
 } deriving Show
 
 class HasTolaApiConfig t where
   tolaApiConfig :: t -> TolaApiConfig
 
+instance HasTolaSecret TolaApiConfig where
+  tolaSecret = _tolaSecret
+
+mkTolaApiConfig :: (Char8.ByteString, Char8.ByteString) -> String -> Secret -> TolaApiConfig
+mkTolaApiConfig = TolaApiConfig
+
+{-
 newtype RealTolaApiT r m a = RealTolaApiT {
   unRealTolaApiT :: ReaderT r m a
 } deriving (Functor, Applicative, Monad, MonadTrans, MonadReader r, MonadIO, MonadLogger)
@@ -40,17 +49,19 @@ runRealTolaApiT = runReaderT . unRealTolaApiT
 
 instance (Monad m, MonadLogger m, HasTolaApiConfig r, MonadReader r m, MonadIO m) => MonadTolaApi (RealTolaApiT r m) where
   makeChargeRequest = makeChargeRequest'
+-}
 
 makeChargeRequest' :: forall (m :: * -> *) t.
-  (MonadIO m,  HasTolaApiConfig t,
+  (MonadIO m,  HasTolaApiConfig t, HasTolaSecret t,
   MonadReader t m, MonadLogger m) =>
   ChargeRequest -> m ChargeResponse
 makeChargeRequest' req = do
   config <- asks tolaApiConfig
-  makeChargeRequest'' config req
+  req' <- (`MACed` req) <$> asks tolaSecret
+  makeChargeRequest'' config req'
 
 
-makeChargeRequest'' :: (MonadIO m, MonadLogger m) => TolaApiConfig -> ChargeRequest -> m ChargeResponse
+makeChargeRequest'' :: (MonadIO m, MonadLogger m) => TolaApiConfig -> (MACed ChargeRequest) -> m ChargeResponse
 makeChargeRequest'' config req = do
   writeLog "makeChargeRequest"
   Y.fromJust
