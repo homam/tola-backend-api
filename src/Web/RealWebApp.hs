@@ -27,7 +27,6 @@ data AppState = AppState {
   , appTolaApiConfig  :: TolaApiConfig
   , appDbPool         :: TolaPool
   }
-
 instance HasTolaApiConfig AppState where
   tolaApiConfig = appTolaApiConfig
 instance HasVaultLoggerKey AppState where
