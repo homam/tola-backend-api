@@ -11,6 +11,7 @@ app   =  homeWeb
       >> disbursementNotificationWeb
       >> chargeRequestWeb
       >> checkChargeRequestWeb
+      >> doMigrationsWeb
 
 someFunc :: IO ()
 someFunc = runWebServer 8080 app

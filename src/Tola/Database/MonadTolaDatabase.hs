@@ -33,6 +33,7 @@ class HasDbPool t where
   dbPool :: t -> TolaPool
 
 class MonadTolaDatabase m where
+  doMigrations :: m ()
   insertChargeRequest :: ChargeRequest.ChargeRequest -> m (Key DBChargeRequest)
   updateChargeRequestWithResponse :: Integer -> ChargeResponse.ChargeResponse -> m ()
   insertLodgementNotificationAndupdateChargeRequest :: LodgementNotification.LodgementNotification -> m (Key DBLodgementNotification)
@@ -138,6 +139,9 @@ getChargeRequestStatus' = fmap (fmap go) . getChargeRequest
     (dBChargeRequestReference o)
     (dBChargeRequestResponseErrorMessage o)
 
+
+doMigrations' :: (backend ~ SqlBackend, PersistStoreWrite backend, MonadIO m) => ReaderT backend m ()
+doMigrations' = runMigration migrateAll
 
 --
 

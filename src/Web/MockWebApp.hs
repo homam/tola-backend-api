@@ -67,6 +67,7 @@ instance MonadLogger (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
   writeLog = liftIO . Char8.putStrLn . (">>> " <>) -- writeLog'
 
 instance MonadTolaDatabase (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
+  doMigrations = runDb doMigrations'
   insertChargeRequest = runDb . insertChargeRequest'
   updateChargeRequestWithResponse i = runDb . updateChargeRequestWithResponse' i
   insertLodgementNotificationAndupdateChargeRequest = runDb . insertLodgementNotificationAndupdateChargeRequest'
@@ -139,6 +140,7 @@ myApp =  homeWeb
       >> disbursementNotificationWeb
       >> chargeRequestWeb
       >> checkChargeRequestWeb
+      >> doMigrationsWeb
 --
 
 withAppT :: MVar () ->  MockWebApp (AppState ()) IO () -> SpecWith Application -> Spec
@@ -191,3 +193,37 @@ testAddDisbursementNotificationForCharge appSpec notification =
       let body = A.encode notification
       void $ getResponseBody <$> testPost200 "/tola/disbursement_notification/" body
       return ()
+
+testAddLodgementNotification appSpec =
+  describe "Testing Add Lodgement Request"
+    $ appSpec
+    $ it "must return '{ success: true }' JSON"
+    $ addLodgementNotificationTest
+    where
+      addLodgementNotificationTest :: WaiSession ()
+      addLodgementNotificationTest = do
+        r <- getResponseBody <$> testPost200 "/tola/lodgement_notification/" "{\"accountname\":\"Joe Blogs\",\"amount\":1000,\"amounttype\":\"unit\",\"channel\":\"KENYA.SAFARICOM\",\"currency\":\"KES\",\"customerreference\":\"123456789\",\"date\":\"2015-06-23T09:45:31Z\",\"mac\":\"a9993e364706816aba3e25717850c26c9cd0d89d\",\"msisdn\":\"25412345678\",\"operatorreference\":\"ABCDEF123456\",\"reference\":\"1.123.1435455096.1\",\"sourcereference\":\"113121316\",\"target\":\"800123\",\"type\":\"lodgement\"}"
+        maybe
+          (liftIO $ expectationFailure $ "Unable to parse the response from check_msisdn_active_subscription \n" <> show r)
+          (const $ return ())
+          (A.decode r :: Maybe SuccessResponse)
+
+
+testMigrations appSpec =
+  describe "Testing Migrations"
+    $ appSpec
+    $ it "must Migrate Database Schema"
+    $ testGet200 "/do_migrations" `shouldRespondWith` 200
+
+main :: IO ()
+main = do
+  sync <- newEmptyMVar
+  let
+    appSpec :: SpecWith Application -> Spec
+    appSpec = withAppT sync myApp
+
+  hspec $ do
+    testMigrations appSpec
+    testAddLodgementNotification appSpec
+
+  testChargeRequestAndNotification

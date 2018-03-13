@@ -49,6 +49,7 @@ instance MonadLogger (ActionT TL.Text (RealWebAppT IO)) where
   writeLog = writeLog'
 
 instance MonadTolaDatabase (ActionT TL.Text (RealWebAppT IO)) where
+  doMigrations = runDb doMigrations'
   insertChargeRequest = runDb . insertChargeRequest'
   updateChargeRequestWithResponse i = runDb . updateChargeRequestWithResponse' i
   insertLodgementNotificationAndupdateChargeRequest = runDb . insertLodgementNotificationAndupdateChargeRequest'

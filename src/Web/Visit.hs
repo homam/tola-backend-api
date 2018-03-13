@@ -61,6 +61,9 @@ homeWeb = getAndHeadAccessOrigin "/" $ do
   res <- makeChargeRequest req
   json res
 
+doMigrationsWeb :: WebApp
+doMigrationsWeb = getAndHead "/do_migrations" $ doMigrations >> text "done!"
+
 chargeRequestWeb :: WebApp
 chargeRequestWeb = getAndHeadAccessOrigin "/api/charge/:msisdn/:amount/:arbitref" $ do
   amount' <- mkAmount . (toRational :: Double -> Rational) <$> param "amount"
