@@ -246,14 +246,14 @@ detailedMiddleware' loggerVaultKey cb uniqueIdGenerator ansiColor ansiMethod ans
 
         t1 <- getCurrentTime
         respBody <- responseBody rsp
-        vaultLogs <- reverse <$> IORef.readIORef logIORef
+        vaultLogs <- map (S8.concat . map (\s -> "    " <> s <> "\n") . S8.split '\n') . reverse <$> IORef.readIORef logIORef
 
         -- log the status of the response
         cb' $
             if isRaw then [] else
                 ansiColor White "  Status: " ++
                 ansiStatusCode stCode (stCode <> " " <> stMsg) ++
-                ansiColor White "\n  Vault Logs: " ++ map ("\n    " <>) vaultLogs ++
+                ansiColor White "\n  Vault Logs: " ++ map ("\n" <>) vaultLogs ++
                 ["\n  ", pack $ show $ diffUTCTime t1 t0, "\n"] ++
                 ansiColor White "  Response Body: " ++ [LBS.toStrict respBody]
         sendResponse rsp
@@ -262,11 +262,11 @@ detailedMiddleware' loggerVaultKey cb uniqueIdGenerator ansiColor ansiMethod ans
                 stMsg = statusMessage  status500
                 respBody = S8.pack $ show ex
             t1 <- getCurrentTime
-            vaultLogs <- IORef.readIORef logIORef
+            vaultLogs <- map (S8.concat . map (\s -> "    " <> s <> "\n") . S8.split '\n') . reverse <$> IORef.readIORef logIORef
             cb' $
                 ansiColor White "  Status: " ++
                 ansiStatusCode stCode (stCode <> " " <> stMsg) ++
-                ansiColor White "\n Vault Logs: " ++ map ("\n    " <>) vaultLogs ++
+                ansiColor White "\n Vault Logs: " ++ map ("\n" <>) vaultLogs ++
                 [" ", pack $ show $ diffUTCTime t1 t0, "\n"] ++
                 ansiColor White "  Response Body: " ++ [respBody]
             sendResponse (responseLBS Status.status500 [] (LBS.fromStrict respBody)))
