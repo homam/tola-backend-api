@@ -7,6 +7,7 @@ module Web.Visit where
 
 import           Control.Monad.Trans                   (liftIO)
 import qualified Data.Aeson                            as A
+import qualified Data.ByteString.Char8                 as Char8
 import           Data.Monoid                           ((<>))
 import           Data.String                           (fromString)
 import qualified Data.Text                             as T
@@ -22,15 +23,16 @@ import           Web.ScottyHelpers
 import           Web.Types.ChargeRequestClientResponse
 import           Web.Types.WebApp
 
-
 -- Tola
 
 notificationWeb path headerName insert =
-  post (fromString $ "/tola/" <> path <> "/") $ do
+  postAndHead (fromString $ "/tola/" <> path <> "/") $ do
     mcn <- fmap A.eitherDecode body
     case mcn of
-      Left err -> status (mkStatus 500 $ T.encodeUtf8 $ T.pack err)
-        >> json (mkSuccessResponse False)
+      Left err -> do
+            status (mkStatus 500 $ T.encodeUtf8 $ T.pack err)
+            writeLog $ Char8.pack err
+            json (mkSuccessResponse False)
       Right cn -> do
         (cnid :: Integer) <- fromIntegral . fromSqlKey <$> insert cn
         addScotchHeader headerName (TL.pack $ show cnid)

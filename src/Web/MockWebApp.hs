@@ -38,6 +38,8 @@ import qualified Data.ByteString.Char8                as Char8
 import           Web.Testing.Helpers
 import           Web.Visit
 --
+import qualified Data.Aeson                           as A
+import           Data.Monoid                          ((<>))
 import           Tola.Database.MonadTolaDatabase
 
 
@@ -62,7 +64,7 @@ type WebMAction r m a = ActionT TL.Text (MockWebAppT r m) a
 type MockWebApp r m a = ScottyT TL.Text (MockWebAppT r m) ()
 
 instance MonadLogger (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
-  writeLog = liftIO . Char8.putStrLn -- writeLog'
+  writeLog = liftIO . Char8.putStrLn . (">>> " <>) -- writeLog'
 
 instance MonadTolaDatabase (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
   insertChargeRequest = runDb . insertChargeRequest'
@@ -90,10 +92,9 @@ instance MonadTolaApi (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
                 Nothing
                 nowl
                 req
+
           -- Send lnotification callback back to our server
-          {-
-          hspec $ testAddLodgementNotificationForCharge appSpec lnotification
-          -}
+          hspec $ testAddLodgementNotificationForCharge (withAppT sync myApp) lnotification
 
           nowd <- getCurrentTime
 
@@ -103,13 +104,11 @@ instance MonadTolaApi (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
                 sourceRef
                 nowd
                 req
+
           -- Send dnotification callback back to our server
-          {-
-          hspec $ testAddDisbursementNotificationForCharge appSpec dnotification
-          -}
+          hspec $ testAddDisbursementNotificationForCharge (withAppT sync myApp) dnotification
           putMVar sync ()
     return $ mkSuccessChargeResponse sourceRef
---     makeChargeRequest'' config req
 
 
 runWeb ::
@@ -135,7 +134,11 @@ runWebServer sync app = do
 
 
 myApp :: MockWebApp (AppState ()) IO ()
-myApp = homeWeb
+myApp =  homeWeb
+      >> lodgementNotificationWeb
+      >> disbursementNotificationWeb
+      >> chargeRequestWeb
+      >> checkChargeRequestWeb
 --
 
 withAppT :: MVar () ->  MockWebApp (AppState ()) IO () -> SpecWith Application -> Spec
@@ -159,7 +162,7 @@ testAddChargeRequest appSpec =
     addChargeRequestTest :: WaiSession ()
     addChargeRequestTest = do
       _ <- getResponseBody <$> testGet200
-        "/" -- "/api/charge/300000001/25.6/50% OFF ENDS NOW" --TODO:
+        "/api/charge/300000001/25.6/50% OFF ENDS NOW"
       return ()
 
 testChargeRequestAndNotification :: IO ()
@@ -171,4 +174,20 @@ testChargeRequestAndNotification = do
   hspec $ testAddChargeRequest appSpec
   takeMVar sync -- wait for charge notification callback to complete
 
+testAddLodgementNotificationForCharge appSpec notification =
+  describe "Testing Add Lodgement Notification"
+    $ appSpec
+    $ it "must return '{ success: true }' JSON"
+    $ do
+      let body = A.encode notification
+      void $ getResponseBody <$> testPost200 "/tola/lodgement_notification/" body
+      return ()
 
+testAddDisbursementNotificationForCharge appSpec notification =
+  describe "Testing Add Disbursement Notification"
+    $ appSpec
+    $ it "must return '{ success: true }' JSON"
+    $ do
+      let body = A.encode notification
+      void $ getResponseBody <$> testPost200 "/tola/disbursement_notification/" body
+      return ()

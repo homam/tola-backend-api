@@ -196,6 +196,7 @@ detailedMiddleware' :: V.Key VaultLogger -> Callback
 detailedMiddleware' loggerVaultKey cb uniqueIdGenerator ansiColor ansiMethod ansiStatusCode app req1 sendResponse = do
     requestId <- fmap (S8.pack . show) uniqueIdGenerator
     let req = addHeader ("X-RequestId", requestId) req1
+
     (req', body) <-
         -- second tuple item should not be necessary, but a test runner might mess it up
         case (requestBodyLength req, contentLength (requestHeaders req)) of
@@ -215,18 +216,19 @@ detailedMiddleware' loggerVaultKey cb uniqueIdGenerator ansiColor ansiMethod ans
                 return $ collectPostParams postParams
 
     let getParams = map emptyGetParam $ queryString req
-        -- accept = fromMaybe "" $ lookup H.hAccept $ requestHeaders req
         params = let par | not $ null postParams = [pack (show postParams)]
                          | not $ null getParams  = [pack (show getParams)]
                          | otherwise             = []
                  in if null par then [""] else ansiColor White "  Params: " <> par <> ["\n"]
+
 
     t0 <- getCurrentTime
 
     let cb' = cb . (\ l -> mconcat $ map toLogStr $ ["\n----Start>\n"] ++
             ansiColor Green "RequestId: " ++ [requestId, "\n"] ++
             ansiMethod (requestMethod req) ++ [" ", rawPathInfo req, "\n"] ++
-            params ++ reqbody ++
+            params ++
+            reqbody ++
             -- ansiColor White "  Accept: " ++ [accept, "\n"] ++ l)
             ansiColor White "  Request Headers: " ++ [headers', "\n"] ++
             ansiColor White "  Raw Query String: " ++ [rawQueryString', "\n"]
@@ -235,7 +237,7 @@ detailedMiddleware' loggerVaultKey cb uniqueIdGenerator ansiColor ansiMethod ans
             )
     logIORef <- IORef.newIORef []
     let vault' = V.insert loggerVaultKey (tellLog logIORef) (vault req')
-        req'' = req { vault = vault' }
+        req'' = req' { vault = vault' }
     catch (app req'' $ \rsp -> do
         let isRaw =
                 case rsp of
