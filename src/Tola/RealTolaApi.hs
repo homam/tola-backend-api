@@ -64,7 +64,7 @@ makeChargeRequest' req = do
 makeChargeRequest'' :: (MonadIO m, MonadLogger m) => TolaApiConfig -> (MACed ChargeRequest) -> m ChargeResponse
 makeChargeRequest'' config req = do
   writeLog "makeChargeRequest"
-  Y.fromJust
+  Y.fromJust --TODO: fix fromJust
     .   A.decode
     .   fromStrict
     <$> post (tolaApiBasicAuth config) (tolaApiUrl config) req

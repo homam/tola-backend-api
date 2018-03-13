@@ -16,6 +16,8 @@ import           Control.Monad.Trans.Writer
 --
 import           Tola.Types.Common
 
+type ResponseWithError a = Either String a
+
 class Monad m => MonadTolaApi m where
   makeChargeRequest :: ChargeRequest -> m ChargeResponse
 

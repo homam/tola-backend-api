@@ -16,7 +16,7 @@ shead
   -> ScottyT e m ()
 shead = addroute HEAD
 
-getAndHead, postAndHead, getAndPostAndHead
+getAndHead, postAndHead, getAndPostAndHead, getAndHeadAccessOrigin
   :: (ScottyError e, MonadIO m)
   => RoutePattern
   -> ActionT e m ()
@@ -24,6 +24,11 @@ getAndHead, postAndHead, getAndPostAndHead
 getAndHead a b = get a b >> shead a b
 postAndHead a b = post a b >> shead a b
 getAndPostAndHead a b = get a b >> post a b >> shead a b
+
+getAndHeadAccessOrigin a b = do
+  shead a add
+  get a (add >> b)
+  where add = addHeader "Access-Control-Allow-Origin" "*"
 
 addScotchHeader :: Monad m => TL.Text -> TL.Text -> ActionT e m ()
 addScotchHeader name = addHeader ("X-Scotch-" <> name)

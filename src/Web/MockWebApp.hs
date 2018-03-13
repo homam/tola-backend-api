@@ -66,6 +66,10 @@ instance MonadLogger (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
 
 instance MonadTolaDatabase (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
   insertChargeRequest = runDb . insertChargeRequest'
+  updateChargeRequestWithResponse i = runDb . updateChargeRequestWithResponse' i
+  insertLodgementNotificationAndupdateChargeRequest = runDb . insertLodgementNotificationAndupdateChargeRequest'
+  insertDisbursementNotificationAndupdateChargeRequest = runDb . insertDisbursementNotificationAndupdateChargeRequest'
+  getChargeRequestStatus = runDb . getChargeRequestStatus'
 
 
 instance MonadTolaApi (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where

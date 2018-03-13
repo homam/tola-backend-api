@@ -35,6 +35,10 @@ class HasDbPool t where
 class MonadTolaDatabase m where
   insertChargeRequest :: ChargeRequest.ChargeRequest -> m (Key DBChargeRequest)
   updateChargeRequestWithResponse :: Integer -> ChargeResponse.ChargeResponse -> m ()
+  insertLodgementNotificationAndupdateChargeRequest :: LodgementNotification.LodgementNotification -> m (Key DBLodgementNotification)
+  insertDisbursementNotificationAndupdateChargeRequest :: DisbursementNotification.DisbursementNotification -> m (Key DBDisbursementNotification)
+  getChargeRequestStatus :: Integer -> m (Maybe ChargeRequest.ChargeRequestStatus)
+
 
 --
 
@@ -93,8 +97,8 @@ insertDisbursementNotificationAndupdateChargeRequest' n = getChargeRequestBySour
   d      = DisbursementNotification.details n
   (s, e) = DisbursementNotification.successAndError n
 
-insertLodgementNotificationAndupdateChargeRequest :: Insert LodgementNotification.LodgementNotification DBLodgementNotification
-insertLodgementNotificationAndupdateChargeRequest n = getChargeRequestBySourceReference (LodgementNotification.reference n)
+insertLodgementNotificationAndupdateChargeRequest' :: Insert LodgementNotification.LodgementNotification DBLodgementNotification
+insertLodgementNotificationAndupdateChargeRequest' n = getChargeRequestBySourceReference (LodgementNotification.reference n)
     >>= \case
           Nothing                -> insert lodgementNotification -- just insert the notification
           Just (Entity creqid _) -> do
@@ -119,15 +123,15 @@ insertLodgementNotificationAndupdateChargeRequest n = getChargeRequestBySourceRe
 
 --
 
-getChargeRequest :: Get Int DBChargeRequest
+getChargeRequest :: Get Integer DBChargeRequest
 getChargeRequest = getById
 
 getChargeRequestBySourceReference :: Get SourceReference (Entity DBChargeRequest)
 getChargeRequestBySourceReference sref =
   selectFirst [DBChargeRequestReference ==. Just sref] [Desc DBChargeRequestId]
 
-getChargeRequestStatus :: Get Int ChargeRequest.ChargeRequestStatus
-getChargeRequestStatus = fmap (fmap go) . getChargeRequest
+getChargeRequestStatus' :: Get Integer ChargeRequest.ChargeRequestStatus
+getChargeRequestStatus' = fmap (fmap go) . getChargeRequest
  where
   go o = ChargeRequest.mkChargeRequestStatus
     (dBChargeRequestState o)

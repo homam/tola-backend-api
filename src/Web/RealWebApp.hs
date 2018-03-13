@@ -51,6 +51,9 @@ instance MonadLogger (ActionT TL.Text (RealWebAppT IO)) where
 instance MonadTolaDatabase (ActionT TL.Text (RealWebAppT IO)) where
   insertChargeRequest = runDb . insertChargeRequest'
   updateChargeRequestWithResponse i = runDb . updateChargeRequestWithResponse' i
+  insertLodgementNotificationAndupdateChargeRequest = runDb . insertLodgementNotificationAndupdateChargeRequest'
+  insertDisbursementNotificationAndupdateChargeRequest = runDb . insertDisbursementNotificationAndupdateChargeRequest'
+  getChargeRequestStatus = runDb . getChargeRequestStatus'
 
 instance MonadTolaApi (ActionT TL.Text (RealWebAppT IO)) where
   makeChargeRequest req = do
