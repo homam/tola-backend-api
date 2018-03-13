@@ -1,7 +1,8 @@
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 
 module Web.Visit where
 
@@ -22,9 +23,24 @@ import           Web.Scotty.Trans
 import           Web.ScottyHelpers
 import           Web.Types.ChargeRequestClientResponse
 import           Web.Types.WebApp
+--
+import           Control.Monad.IO.Class                (MonadIO)
+import           Database.Persist.Class                (Key, ToBackendKey)
+import           Database.Persist.Sql                  (SqlBackend)
 
 -- Tola
 
+notificationWeb ::
+  (A.FromJSON t,
+   MonadTolaDatabase (ActionT e m),
+   ToBackendKey SqlBackend b,
+   MonadLogger (ActionT e m), MonadIO m,
+   ScottyError e
+  )
+  =>  String
+  -> TL.Text
+  -> (t -> ActionT e m (Key b))
+  -> ScottyT e m ()
 notificationWeb path headerName insert =
   postAndHead (fromString $ "/tola/" <> path <> "/") $ do
     mcn <- fmap A.eitherDecode body
@@ -90,4 +106,5 @@ checkChargeRequestWeb = getAndHeadAccessOrigin "/api/check_charge/:chargeRequest
       mcreq <- getChargeRequestStatus creqId
       maybe (jsonError "No ChargeRequest was found") json mcreq
 
+jsonError :: (ScottyError e, Monad m) => String -> ActionT e m ()
 jsonError e = status status500 >> json (mkApiError e)

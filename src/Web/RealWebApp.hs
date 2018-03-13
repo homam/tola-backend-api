@@ -66,37 +66,35 @@ instance ToMACed (ActionT TL.Text (RealWebAppT IO)) where
 
 
 runWeb ::
-     VaultLoggerKey
-  -> TolaApiConfig
-  -> TolaPool
+     AppState
   -> (RealWebAppT IO) a -> IO a
-runWeb loggerVaultKey tolaApiConfig' pool app = do
-  let appState = AppState {
-      appVaultLoggerKey = loggerVaultKey
-    , appTolaApiConfig = tolaApiConfig'
-    , appDbPool = pool
-    }
+runWeb appState app =
   runReaderT (unRealWebAppT app) appState
 
-runWebServer :: Int -> RealWebApp IO b -> IO () -- RealWebApp IO b = ScottyT TL.Text (RealWebAppT IO) ()
-runWebServer port app = do
+-- runWebServer :: Int -> RealWebApp IO b -> IO () -- RealWebApp IO b = ScottyT TL.Text (RealWebAppT IO) ()
+runWebServer db secret url (authUsername, authPassword) port app = do
   loggerVaultKey <- V.newKey
   withDetailedLoggerMiddleware
     loggerVaultKey
     ( \logger -> withDbPool
-      "host=localhost dbname=tola" --TODO: get from Env
+      db
       ( \pool -> scottyT
         port
         ( runWeb
-          loggerVaultKey
-          TolaApiConfig
-            { tolaApiBasicAuth = ("", "")
-            , tolaApiUrl       = "https://httpbin.org/post" --"https://requestb.in/13gb79v1"
-            , _tolaSecret = mkSecret ""
-            }
-          pool
+            (appState loggerVaultKey pool)
         )
         (middleware logger >> app)
       )
     )
     simpleStdoutLogType
+    where
+      appState loggerVaultKey pool = AppState {
+          appVaultLoggerKey = loggerVaultKey
+        , appTolaApiConfig = tolaApiConfig'
+        , appDbPool = pool
+      }
+      tolaApiConfig' = TolaApiConfig {
+          tolaApiBasicAuth = (authUsername, authPassword)
+        , tolaApiUrl       = url -- "https://httpbin.org/post" --"https://requestb.in/13gb79v1"
+        , _tolaSecret = secret
+      }

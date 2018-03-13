@@ -7,21 +7,16 @@
 
 module Tola.RealTolaApi where
 
-import           Control.Monad.Trans.Class
-import           Tola.MonadTolaApi
---
+import           Control.Monad.Reader
 import qualified Data.Aeson                as A
 import qualified Data.ByteString.Char8     as Char8
 import           Data.ByteString.Lazy      (fromStrict, toStrict)
 import qualified Data.Maybe                as Y
 import qualified Network.HTTP.Conduit      as C
---
-import           Control.Monad.Reader
-import           Web.Logging.MonadLogger
---
 import           Tola.Types.ChargeRequest
 import           Tola.Types.ChargeResponse
 import           Tola.Types.Common
+import           Web.Logging.MonadLogger
 
 
 data TolaApiConfig = TolaApiConfig {

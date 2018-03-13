@@ -40,6 +40,7 @@ import           Web.Visit
 --
 import qualified Data.Aeson                           as A
 import           Data.Monoid                          ((<>))
+import qualified System.Environment                   as Env
 import           Tola.Database.MonadTolaDatabase
 
 
@@ -119,15 +120,15 @@ runWeb appState app =
   runReaderT (unMockWebAppT app) appState
 
 
-runWebServer :: MVar () -> MockWebApp (AppState ()) IO b -> IO Application
-runWebServer sync app = do
+runWebServer :: Char8.ByteString -> Secret -> MVar () -> MockWebApp (AppState ()) IO b -> IO Application
+runWebServer db secret sync app = do
   loggerVaultKey <- V.newKey
   withDetailedLoggerMiddleware
     loggerVaultKey
     ( \logger -> withDbPool
-      "host=localhost dbname=tola" --TODO: get connection string from Env
+      db
       ( \pool -> scottyAppT
-        (runWeb $ AppState loggerVaultKey (mkSecret "tola_secret") sync pool) --TODO: get secret from Env
+        (runWeb $ AppState loggerVaultKey secret sync pool)
         (middleware logger >> app)
       )
     )
@@ -146,11 +147,12 @@ myApp =  homeWeb
 withAppT :: MVar () ->  MockWebApp (AppState ()) IO () -> SpecWith Application -> Spec
 withAppT sync a = with run
  where
-  run =
-    -- db             <- liftIO $ Env.getEnv "db"
-    -- jewlDb         <- liftIO $ Env.getEnv "jewel_connection_string"
-    -- secret         <- liftIO $ fmap mkSecret' (Env.getEnv "tola_secret")
+  run = do
+    db             <- liftIO $ Env.getEnv "db"
+    secret         <- liftIO $ fmap mkSecret' (Env.getEnv "tola_secret")
     runWebServer
+              (Char8.pack db)
+              secret
               sync
               a
 
