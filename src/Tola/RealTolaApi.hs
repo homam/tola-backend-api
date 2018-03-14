@@ -1,22 +1,28 @@
-{-# LANGUAGE ExplicitForAll             #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures             #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ExplicitForAll        #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+
 
 module Tola.RealTolaApi where
 
+import           Control.Monad.Catch
 import           Control.Monad.Reader
 import qualified Data.Aeson                as A
 import qualified Data.ByteString.Char8     as Char8
 import           Data.ByteString.Lazy      (fromStrict, toStrict)
-import qualified Data.Maybe                as Y
 import qualified Network.HTTP.Conduit      as C
 import           Tola.Types.ChargeRequest
 import           Tola.Types.ChargeResponse
 import           Tola.Types.Common
 import           Web.Logging.MonadLogger
+--
+import qualified Control.Exception         as X
+import           Network.HTTP.Client
+
+
 
 
 data TolaApiConfig = TolaApiConfig {
@@ -48,27 +54,30 @@ instance (Monad m, MonadLogger m, HasTolaApiConfig r, MonadReader r m, MonadIO m
 
 makeChargeRequest' :: forall (m :: * -> *) t.
   (MonadIO m,  HasTolaApiConfig t, HasTolaSecret t,
-  MonadReader t m, MonadLogger m) =>
-  ChargeRequest -> m ChargeResponse
+  MonadReader t m, MonadLogger m, MonadCatch m) =>
+  ChargeRequest -> m (Either String ChargeResponse)
 makeChargeRequest' req = do
   config <- asks tolaApiConfig
   req' <- (`MACed` req) <$> asks tolaSecret
   makeChargeRequest'' config req'
 
 
-makeChargeRequest'' :: (MonadIO m, MonadLogger m) => TolaApiConfig -> (MACed ChargeRequest) -> m ChargeResponse
+makeChargeRequest'' :: (MonadIO m, MonadLogger m, MonadCatch m) => TolaApiConfig -> (MACed ChargeRequest) -> m (Either String ChargeResponse)
 makeChargeRequest'' config req = do
   writeLog "makeChargeRequest"
-  Y.fromJust --TODO: fix fromJust
-    .   A.decode
-    .   fromStrict
+  A.eitherDecode
+     .   fromStrict
     <$> post (tolaApiBasicAuth config) (tolaApiUrl config) req
 
 
 
 ---
 
-post :: (MonadIO m, MonadLogger m, A.ToJSON t) => (Char8.ByteString, Char8.ByteString) -> String -> t -> m Char8.ByteString
+data MyException = MyException String deriving Show
+instance X.Exception MyException
+
+post :: (MonadIO m, MonadLogger m, A.ToJSON t, MonadCatch m) => (Char8.ByteString, Char8.ByteString) -> String -> t -> m Char8.ByteString
+-- post (user, pass) url obj = throwM $ ( MyException "MyException was thrown")
 post (user, pass) url obj = do
   manager <- liftIO $ C.newManager C.tlsManagerSettings
   r <- liftIO $ C.parseUrlThrow url
@@ -81,7 +90,7 @@ post (user, pass) url obj = do
     }
   writeLog $ Char8.pack $ show request
   writeLog (toStrict json)
-  response <- C.httpLbs request manager
+  response <- liftIO $ C.httpLbs request manager
   let strictBody = toStrict $ C.responseBody response
   writeLog strictBody
   return strictBody

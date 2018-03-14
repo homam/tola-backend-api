@@ -48,6 +48,7 @@ dependencies:
 - fast-logger
 - lifted-base
 - scotty
+- exceptions
 - http-types
 - resource-pool
 - persistent
@@ -55,6 +56,7 @@ dependencies:
 - persistent-postgresql
 - monad-logger
 - monad-control
+- http-client
 
 library:
   source-dirs: src

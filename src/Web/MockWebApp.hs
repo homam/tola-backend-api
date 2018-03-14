@@ -38,6 +38,7 @@ import qualified Data.ByteString.Char8                as Char8
 import           Web.Testing.Helpers
 import           Web.Visit
 --
+import           Control.Monad.Catch
 import qualified Data.Aeson                           as A
 import           Data.Monoid                          ((<>))
 import qualified System.Environment                   as Env
@@ -59,7 +60,7 @@ instance HasDbPool (AppState s) where
 
 
 newtype MockWebAppT r m a = MockWebAppT { unMockWebAppT ::  ReaderT r m a }
-  deriving (Applicative, Functor, Monad, MonadIO, MonadReader r, MonadTrans)
+  deriving (Applicative, Functor, Monad, MonadIO, MonadReader r, MonadTrans, MonadThrow, MonadCatch)
 
 type WebMAction r m a = ActionT TL.Text (MockWebAppT r m) a
 type MockWebApp r m a = ScottyT TL.Text (MockWebAppT r m) ()
@@ -110,7 +111,7 @@ instance MonadTolaApi (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
           -- Send dnotification callback back to our server
           hspec $ testAddDisbursementNotificationForCharge (withAppT sync myApp) dnotification
           putMVar sync ()
-    return $ mkSuccessChargeResponse sourceRef
+    return $ Right $ mkSuccessChargeResponse sourceRef
 
 
 runWeb ::

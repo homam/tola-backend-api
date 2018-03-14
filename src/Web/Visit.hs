@@ -1,4 +1,6 @@
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MonoLocalBinds        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RankNTypes            #-}
@@ -24,6 +26,7 @@ import           Web.ScottyHelpers
 import           Web.Types.ChargeRequestClientResponse
 import           Web.Types.WebApp
 --
+import           Control.Monad.Catch
 import           Control.Monad.IO.Class                (MonadIO)
 import           Database.Persist.Class                (Key, ToBackendKey)
 import           Database.Persist.Sql                  (SqlBackend)
@@ -90,12 +93,17 @@ chargeRequestWeb = getAndHeadAccessOrigin "/api/charge/:msisdn/:amount/:arbitref
   cr <- liftIO $ mkChargeRequest' target' amount' msisdn' arbitref
   cridKey <- insertChargeRequest cr
   let crid = fromIntegral $ fromSqlKey cridKey
-  resp <- makeChargeRequest cr
-  updateChargeRequestWithResponse crid resp
-
-  crid' <- liftIO $ (idToHex 10000 :: Integer -> IO String) crid
-  addScotchHeader "ChargeRequestId" (TL.pack crid')
-  json $ mkChargeRequestClientResponse (mkSourceReferenceFromString crid') resp
+  catch (
+    makeChargeRequest cr >>= \case
+      Right resp -> do
+        updateChargeRequestWithResponse crid resp
+        crid' <- liftIO $ (idToHex 10000 :: Integer -> IO String) crid
+        addScotchHeader "ChargeRequestId" (TL.pack crid')
+        json $ mkChargeRequestClientResponse (mkSourceReferenceFromString crid') resp
+      Left err ->
+        jsonError err
+    )
+    (jsonError . (displayException :: SomeException -> String))
 
 checkChargeRequestWeb :: WebApp
 checkChargeRequestWeb = getAndHeadAccessOrigin "/api/check_charge/:chargeRequestId" $ do

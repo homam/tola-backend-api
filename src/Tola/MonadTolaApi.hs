@@ -13,15 +13,13 @@ import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.RWS
 import           Control.Monad.Trans.State
 import           Control.Monad.Trans.Writer
---
-import           Tola.Types.Common
 
 type ResponseWithError a = Either String a
 
 class Monad m => MonadTolaApi m where
-  makeChargeRequest :: ChargeRequest -> m ChargeResponse
+  makeChargeRequest :: ChargeRequest -> m (Either String ChargeResponse)
 
-  default makeChargeRequest :: (MonadTrans t, MonadTolaApi m', m ~ t m') => ChargeRequest -> m ChargeResponse
+  default makeChargeRequest :: (MonadTrans t, MonadTolaApi m', m ~ t m') => ChargeRequest -> m (Either String ChargeResponse)
   makeChargeRequest = lift . makeChargeRequest
 
 

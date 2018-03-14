@@ -6,7 +6,6 @@ import qualified Data.ByteString.Char8 as Char8
 import qualified System.Environment    as Env
 import           Tola.Types.Common
 import           Web.RealWebApp
-import           Web.RealWebApp
 import           Web.Visit
 
 app :: RealWebApp IO ()

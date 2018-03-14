@@ -47,6 +47,8 @@ extra-deps:
 - optparse-applicative-0.13.2.0
 - either-4.4.1.1
 - AES-0.2.9
+- git: https://github.com/scotty-web/scotty.git
+  commit: f487161f4bd0958bb7dd431e2f4ecc3a45d8d21c
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

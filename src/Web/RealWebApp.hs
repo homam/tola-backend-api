@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MonoLocalBinds             #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
@@ -10,7 +11,11 @@
 
 module Web.RealWebApp where
 
+import qualified Control.Exception                    as ControlException
+import           Control.Monad.Catch
 import           Control.Monad.Reader
+import qualified Data.Text                            as T
+
 import qualified Data.Text.Lazy                       as TL
 import qualified Data.Vault.Lazy                      as V
 import           Tola.Database.MonadTolaDatabase
@@ -23,6 +28,7 @@ import           Web.Logging.Logger
 import           Web.Logging.MonadLogger
 import           Web.Scotty.Trans
 import           Web.Types.WebApp
+
 
 data AppState = AppState {
     appVaultLoggerKey :: VaultLoggerKey
@@ -40,7 +46,7 @@ instance HasDbPool AppState where
 
 
 newtype RealWebAppT m a = RealWebAppT { unRealWebAppT ::  ReaderT AppState m a }
-  deriving (Applicative, Functor, Monad, MonadIO, MonadReader AppState, MonadTrans)
+  deriving (Applicative, Functor, Monad, MonadIO, MonadReader AppState, MonadTrans, MonadThrow, MonadCatch)
 
 type WebMAction m a = ActionT TL.Text (RealWebAppT m) a
 type RealWebApp m a = ScottyT TL.Text (RealWebAppT m) ()
