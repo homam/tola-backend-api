@@ -2,3 +2,4 @@
 tola-backend-api-march.cabal
 *~
 .Test-src/
+start.sh
