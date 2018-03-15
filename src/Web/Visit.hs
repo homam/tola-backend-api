@@ -116,3 +116,11 @@ checkChargeRequestWeb = getAndHeadAccessOrigin "/api/check_charge/:chargeRequest
 
 jsonError :: (ScottyError e, Monad m) => String -> ActionT e m ()
 jsonError e = status status500 >> json (mkApiError e)
+
+app :: WebApp
+app   =  homeWeb
+      >> lodgementNotificationWeb
+      >> disbursementNotificationWeb
+      >> chargeRequestWeb
+      >> checkChargeRequestWeb
+      >> doMigrationsWeb

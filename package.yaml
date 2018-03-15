@@ -40,6 +40,7 @@ dependencies:
 - time
 - wai
 - wai-extra
+- warp
 - vault
 - blaze-builder
 - data-default-class 
@@ -47,6 +48,7 @@ dependencies:
 - ansi-terminal
 - fast-logger
 - lifted-base
+- transformers-base
 - scotty
 - exceptions
 - http-types

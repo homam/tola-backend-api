@@ -8,7 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
 
-module Web.MockWebApp where
+module Web.Apps.HSpecMockWebApp where
 
 import           Control.Monad.Reader
 import qualified Data.Text.Lazy                       as TL
@@ -85,7 +85,7 @@ instance MonadTolaApi (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
     liftIO $ forkIO $ do
           threadDelay 10000 -- artificial delay to simulate async callback
           nowl <- getCurrentTime
-          ref <- mkSourceReference . pack . (toHex :: Integer -> String) <$> getTime (1000 :: Double)
+          -- ref <- mkSourceReference . pack . (toHex :: Integer -> String) <$> getTime (1000 :: Double)
 
           let lnotification = LodgementNotification.fromChargeRequest
                 secret
@@ -179,6 +179,9 @@ testChargeRequestAndNotification = do
   hspec $ testAddChargeRequest appSpec
   takeMVar sync -- wait for charge notification callback to complete
 
+testAddLodgementNotificationForCharge, testAddDisbursementNotificationForCharge ::
+  A.ToJSON p =>
+  (SpecWith Application -> SpecWith a) -> p -> SpecWith a
 testAddLodgementNotificationForCharge appSpec notification =
   describe "Testing Add Lodgement Notification"
     $ appSpec
@@ -197,11 +200,12 @@ testAddDisbursementNotificationForCharge appSpec notification =
       void $ getResponseBody <$> testPost200 "/tola/disbursement_notification/" body
       return ()
 
+testAddLodgementNotification, testMigrations ::
+  (SpecWith Application -> SpecWith a) -> SpecWith a
 testAddLodgementNotification appSpec =
   describe "Testing Add Lodgement Request"
     $ appSpec
-    $ it "must return '{ success: true }' JSON"
-    $ addLodgementNotificationTest
+    $ it "must return '{ success: true }' JSON" addLodgementNotificationTest
     where
       addLodgementNotificationTest :: WaiSession ()
       addLodgementNotificationTest = do

@@ -4,31 +4,29 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MonoLocalBinds             #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
 
-module Web.RealWebApp where
+module Web.Apps.RealWebApp where
 
-import qualified Control.Exception                    as ControlException
 import           Control.Monad.Catch
 import           Control.Monad.Reader
-import qualified Data.Text                            as T
-
+import           Data.ByteString.Char8                (ByteString)
 import qualified Data.Text.Lazy                       as TL
 import qualified Data.Vault.Lazy                      as V
+import           Database.Persist.Postgresql          (ConnectionString)
+import           Network.Wai.Handler.Warp             (Port)
 import           Tola.Database.MonadTolaDatabase
 import           Tola.MonadTolaApi
 import           Tola.RealTolaApi
-import           Tola.Types.Common                    (MACed (..), ToMACed (..),
-                                                       mkSecret)
+import           Tola.Types.Common                    (MACed (..), Secret,
+                                                       ToMACed (..))
 import           Web.Logging.DetailedLoggerMiddleware (simpleStdoutLogType, withDetailedLoggerMiddleware)
 import           Web.Logging.Logger
 import           Web.Logging.MonadLogger
 import           Web.Scotty.Trans
 import           Web.Types.WebApp
-
 
 data AppState = AppState {
     appVaultLoggerKey :: VaultLoggerKey
@@ -77,7 +75,14 @@ runWeb ::
 runWeb appState app =
   runReaderT (unRealWebAppT app) appState
 
--- runWebServer :: Int -> RealWebApp IO b -> IO () -- RealWebApp IO b = ScottyT TL.Text (RealWebAppT IO) ()
+runWebServer :: forall e
+   . ConnectionString
+  -> Secret
+  -> String
+  -> (ByteString, ByteString)
+  -> Port
+  -> ScottyT e (RealWebAppT IO) ()
+  -> IO ()
 runWebServer db secret url (authUsername, authPassword) port app = do
   loggerVaultKey <- V.newKey
   withDetailedLoggerMiddleware
@@ -96,11 +101,11 @@ runWebServer db secret url (authUsername, authPassword) port app = do
     where
       appState loggerVaultKey pool = AppState {
           appVaultLoggerKey = loggerVaultKey
-        , appTolaApiConfig = tolaApiConfig'
+        , appTolaApiConfig  = tolaApiConfig'
         , appDbPool = pool
       }
       tolaApiConfig' = TolaApiConfig {
           tolaApiBasicAuth = (authUsername, authPassword)
-        , tolaApiUrl       = url -- "https://httpbin.org/post" --"https://requestb.in/13gb79v1"
-        , _tolaSecret = secret
+        , tolaApiUrl       = url
+        , _tolaSecret      = secret
       }
