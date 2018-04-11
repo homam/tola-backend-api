@@ -17,9 +17,9 @@ import           Control.Monad.Trans.Writer
 type ResponseWithError a = Either String a
 
 class Monad m => MonadTolaApi m where
-  makeChargeRequest :: ChargeRequest -> m (Either String ChargeResponse)
+  makeChargeRequest :: MockableChargeRequest -> m (Either String ChargeResponse)
 
-  default makeChargeRequest :: (MonadTrans t, MonadTolaApi m', m ~ t m') => ChargeRequest -> m (Either String ChargeResponse)
+  default makeChargeRequest :: (MonadTrans t, MonadTolaApi m', m ~ t m') => MockableChargeRequest -> m (Either String ChargeResponse)
   makeChargeRequest = lift . makeChargeRequest
 
 

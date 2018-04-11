@@ -9,6 +9,7 @@ module Tola.Types.DisbursementNotification (
   , mkSuccessDisbursementNotification
   , mkFailureDisbursementNotification
   , fromChargeRequest
+  , fromChargeRequestAndError
   , successAndError
 ) where
 
@@ -186,3 +187,24 @@ fromChargeRequest s oref sref d cr =
     (CR.target cr)
     "notification"
     d
+
+fromChargeRequestAndError ::
+     Text
+  -> Secret
+  -> OperatorReference
+  -> SourceReference
+  -> UTCTime
+  -> CR.ChargeRequest
+  -> DisbursementNotification
+fromChargeRequestAndError err s oref sref d cr =
+  mkDisbursementNotification (Left err) $ mkDisbursementNotificationDetails
+    s
+    (CR.amount cr)
+    (CR.msisdn cr)
+    (CR.sourcereference cr)
+    oref
+    sref
+    (CR.target cr)
+    "notification"
+    d
+

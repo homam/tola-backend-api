@@ -28,6 +28,7 @@ import           Web.Types.WebApp
 --
 import           Control.Monad.Catch
 import           Control.Monad.IO.Class                (MonadIO)
+import           Data.Maybe                            (fromMaybe, listToMaybe)
 import           Database.Persist.Class                (Key, ToBackendKey)
 import           Database.Persist.Sql                  (SqlBackend)
 
@@ -74,10 +75,11 @@ disbursementNotificationWeb = notificationWeb
 
 homeWeb :: WebApp
 homeWeb = getAndHeadAccessOrigin "/" $ do
+
   writeLog "request to /"
   req <- liftIO $ mkChargeRequest' (mkTarget "0000") (mkAmount 23) (mkMsisdn "0292883") (mkArbitraryReference "someref")
-  insertChargeRequest req
-  res <- makeChargeRequest req
+  _ <- insertChargeRequest req
+  res <- makeChargeRequest (mkMockableChargeRequest MockSuccess req)
   json res
 
 doMigrationsWeb :: WebApp
@@ -88,13 +90,14 @@ chargeRequestWeb = getAndHeadAccessOrigin "/api/charge/:msisdn/:amount/:arbitref
   amount' <- mkAmount . (toRational :: Double -> Rational) <$> param "amount"
   msisdn' <- mkMsisdn <$> param "msisdn"
   arbitref <- mkArbitraryReference <$> param "arbitref"
+  mock <- fromMaybe MockSuccess . maybeRead <$> (param "mock" `rescue` const (return ""))
 
   let target' = mkTarget "850702"
   cr <- liftIO $ mkChargeRequest' target' amount' msisdn' arbitref
   cridKey <- insertChargeRequest cr
   let crid = fromIntegral $ fromSqlKey cridKey
   catch (
-    makeChargeRequest cr >>= \case
+    makeChargeRequest (mkMockableChargeRequest mock cr) >>= \case
       Right resp -> do
         updateChargeRequestWithResponse crid resp
         crid' <- liftIO $ (idToHex 10000 :: Integer -> IO String) crid
@@ -104,6 +107,10 @@ chargeRequestWeb = getAndHeadAccessOrigin "/api/charge/:msisdn/:amount/:arbitref
         jsonError err
     )
     (jsonError . (displayException :: SomeException -> String))
+
+    where
+      maybeRead :: Read a => String -> Maybe a
+      maybeRead = fmap fst . listToMaybe . reads
 
 checkChargeRequestWeb :: WebApp
 checkChargeRequestWeb = getAndHeadAccessOrigin "/api/check_charge/:chargeRequestId" $ do

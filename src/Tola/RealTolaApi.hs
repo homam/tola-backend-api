@@ -8,6 +8,7 @@
 
 module Tola.RealTolaApi where
 
+import qualified Control.Exception         as X
 import           Control.Monad.Catch
 import           Control.Monad.Reader
 import qualified Data.Aeson                as A
@@ -18,9 +19,6 @@ import           Tola.Types.ChargeRequest
 import           Tola.Types.ChargeResponse
 import           Tola.Types.Common
 import           Web.Logging.MonadLogger
---
-import qualified Control.Exception         as X
-import           Network.HTTP.Client
 
 
 

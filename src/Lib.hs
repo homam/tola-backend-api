@@ -11,15 +11,15 @@ import qualified Web.Visit             as Visit
 
 main :: IO ()
 main = do
-    db             <- Env.getEnv "db"
-    secret         <- fmap mkSecret' (Env.getEnv "tola_secret")
-    port           <- fmap read (Env.getEnv "port")
+    db             <- Char8.pack <$> Env.getEnv "db"
+    secret         <- mkSecret' <$> Env.getEnv "tola_secret"
+    port           <- read <$> Env.getEnv "port"
     url            <- Env.getEnv "tola_url"
     auth           <- (,) <$> (Char8.pack <$> Env.getEnv "tola_username") <*> (Char8.pack <$> Env.getEnv "tola_password")
-    isMock         <- fmap (== Just "true") (Env.lookupEnv "mocked")
+    isMock         <- (== Just "true") <$> Env.lookupEnv "mocked"
     if isMock
         then MockWebApp.runWebServer
-            (Char8.pack db)
+            db
             secret
             url
             auth
@@ -27,7 +27,7 @@ main = do
             Visit.app
 
         else RealWebApp.runWebServer
-            (Char8.pack db)
+            db
             secret
             url
             auth

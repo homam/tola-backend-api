@@ -11,6 +11,7 @@
 module Web.Apps.HSpecMockWebApp where
 
 import           Control.Monad.Reader
+import qualified Data.Text                            as T
 import qualified Data.Text.Lazy                       as TL
 import qualified Data.Vault.Lazy                      as V
 import           Tola.MonadTolaApi
@@ -23,6 +24,7 @@ import           Web.Scotty.Trans                     (ActionT, ScottyT,
 import           Control.Concurrent
 import           Data.Time.Clock                      (getCurrentTime)
 import           Tola.Imports
+import qualified Tola.Types.ChargeRequest             as ChargeRequest
 import           Tola.Types.ChargeResponse
 import           Tola.Types.Common
 import qualified Tola.Types.DisbursementNotification  as DisbursementNotification
@@ -78,11 +80,12 @@ instance MonadTolaDatabase (ActionT TL.Text (MockWebAppT (AppState ()) IO)) wher
 
 
 instance MonadTolaApi (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
-  makeChargeRequest req = do
+  makeChargeRequest (ChargeRequest.MockableChargeRequest mock req) = do
+
     sync <- lift $ asks appStateSync
     secret <- lift $ asks appStateTolaSecret
     sourceRef <- liftIO $ mkSourceReference . pack . (toHex :: Integer -> String) <$> getTime (1000000 :: Double)
-    liftIO $ forkIO $ do
+    _ <- liftIO $ forkIO $ do
           threadDelay 10000 -- artificial delay to simulate async callback
           nowl <- getCurrentTime
           -- ref <- mkSourceReference . pack . (toHex :: Integer -> String) <$> getTime (1000 :: Double)
@@ -101,7 +104,11 @@ instance MonadTolaApi (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
 
           nowd <- getCurrentTime
 
-          let dnotification = DisbursementNotification.fromChargeRequest
+          let disbursementNotificationCtor = case mock of
+                                      ChargeRequest.MockSuccess -> DisbursementNotification.fromChargeRequest
+                                      x -> DisbursementNotification.fromChargeRequestAndError ("Mocked Failure of " <> T.pack (show x))
+
+          let dnotification = disbursementNotificationCtor
                 secret
                 (mkOperatorReference "operator.ref")
                 sourceRef
@@ -117,12 +124,12 @@ instance MonadTolaApi (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
 runWeb ::
      r
   -> (MockWebAppT r IO) a -> IO a
-runWeb appState app =
-  runReaderT (unMockWebAppT app) appState
+runWeb appState app' =
+  runReaderT (unMockWebAppT app') appState
 
 
 runWebServer :: Char8.ByteString -> Secret -> MVar () -> MockWebApp (AppState ()) IO b -> IO Application
-runWebServer db secret sync app = do
+runWebServer db secret sync app' = do
   loggerVaultKey <- V.newKey
   withDetailedLoggerMiddleware
     loggerVaultKey
@@ -130,7 +137,7 @@ runWebServer db secret sync app = do
       db
       ( \pool -> scottyAppT
         (runWeb $ AppState loggerVaultKey secret sync pool)
-        (middleware logger >> app)
+        (middleware logger >> app')
       )
     )
     simpleStdoutLogType

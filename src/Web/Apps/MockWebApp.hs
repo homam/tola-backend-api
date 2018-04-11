@@ -27,6 +27,7 @@ import           Tola.Database.MonadTolaDatabase
 import           Tola.Imports
 import           Tola.MonadTolaApi
 import           Tola.RealTolaApi
+import qualified Tola.Types.ChargeRequest             as ChargeRequest
 import           Tola.Types.ChargeResponse
 import           Tola.Types.Common
 import qualified Tola.Types.DisbursementNotification  as DisbursementNotification
@@ -79,45 +80,51 @@ instance MonadTolaDatabase (ActionT TL.Text (MockWebAppT IO)) where
   getChargeRequestStatus = runDb . getChargeRequestStatus'
 
 instance MonadTolaApi (ActionT TL.Text (MockWebAppT IO)) where
-  makeChargeRequest req = do
+  makeChargeRequest (ChargeRequest.MockableChargeRequest mock req) = do
     config <- lift $ asks appTolaApiConfig
     let secret = _tolaSecret config
     sourceRef <- liftIO $ mkSourceReference . pack . (toHex :: Integer -> String) <$> getTime (1000000 :: Double)
 
-    void $ fork $ do
-          liftIO $ threadDelay 5000000 -- artificial delay to simulate async callback
-          nowl <- liftIO getCurrentTime
-          -- ref <- mkSourceReference . pack . (toHex :: Integer -> String) <$> getTime (1000 :: Double)
+    case mock of
+      ChargeRequest.MockChargeResponseError -> return $ Right $ mkFailureChargeResponse 666 "MockedFailure of ChargeResponse"
+      _ -> do
+        void $ fork $ do
+              liftIO $ threadDelay 5000000 -- artificial delay to simulate async callback
+              nowl <- liftIO getCurrentTime
+              -- ref <- mkSourceReference . pack . (toHex :: Integer -> String) <$> getTime (1000 :: Double)
 
-          let lnotification = LodgementNotification.fromChargeRequest
-                secret
-                sourceRef
-                (mkOperatorReference "operator.ref")
-                (mkCustomerReference "custoemr.ref")
-                Nothing
-                nowl
-                req
+              let lnotification = LodgementNotification.fromChargeRequest
+                    secret
+                    sourceRef
+                    (mkOperatorReference "operator.ref")
+                    (mkCustomerReference "custoemr.ref")
+                    Nothing
+                    nowl
+                    req
 
-          -- Send lnotification callback back to our server
-          -- hspec $ testAddLodgementNotificationForCharge (withAppT sync myApp) lnotification
-          void $ insertLodgementNotificationAndupdateChargeRequest lnotification
+              -- Send lnotification callback back to our server
+              -- hspec $ testAddLodgementNotificationForCharge (withAppT sync myApp) lnotification
+              void $ insertLodgementNotificationAndupdateChargeRequest lnotification
 
-          liftIO $ threadDelay 10000000
+              liftIO $ threadDelay 10000000
 
-          nowd <- liftIO getCurrentTime
+              nowd <- liftIO getCurrentTime
 
-          let dnotification = DisbursementNotification.fromChargeRequest
-                secret
-                (mkOperatorReference "operator.ref")
-                sourceRef
-                nowd
-                req
+              let disbursementNotificationCtor = case mock of
+                                          ChargeRequest.MockDisbursementNotificationError -> DisbursementNotification.fromChargeRequestAndError "Mocked Failure of DisbursementNotification"
+                                          _ -> DisbursementNotification.fromChargeRequest
 
-          -- Send dnotification callback back to our server
-          void $ insertDisbursementNotificationAndupdateChargeRequest dnotification
+              let dnotification = disbursementNotificationCtor
+                    secret
+                    (mkOperatorReference "operator.ref")
+                    sourceRef
+                    nowd
+                    req
 
-          return ()
-    return $ Right $ mkSuccessChargeResponse sourceRef
+              -- Send dnotification callback back to our server
+              void $ insertDisbursementNotificationAndupdateChargeRequest dnotification
+
+        return $ Right $ mkSuccessChargeResponse sourceRef
 
 instance ToMACed (ActionT TL.Text (MockWebAppT IO)) where
   toMACed r = (`MACed` r) . _tolaSecret <$> lift (asks appTolaApiConfig)

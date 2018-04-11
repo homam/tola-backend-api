@@ -20,6 +20,7 @@ import           Network.Wai.Handler.Warp             (Port)
 import           Tola.Database.MonadTolaDatabase
 import           Tola.MonadTolaApi
 import           Tola.RealTolaApi
+import qualified Tola.Types.ChargeRequest             as ChargeRequest
 import           Tola.Types.Common                    (MACed (..), Secret,
                                                        ToMACed (..))
 import           Web.Logging.DetailedLoggerMiddleware (simpleStdoutLogType, withDetailedLoggerMiddleware)
@@ -61,7 +62,7 @@ instance MonadTolaDatabase (ActionT TL.Text (RealWebAppT IO)) where
   getChargeRequestStatus = runDb . getChargeRequestStatus'
 
 instance MonadTolaApi (ActionT TL.Text (RealWebAppT IO)) where
-  makeChargeRequest req = do
+  makeChargeRequest (ChargeRequest.MockableChargeRequest _ req) = do
     config <- lift $ asks appTolaApiConfig
     makeChargeRequest'' config =<< toMACed req
 

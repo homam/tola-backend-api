@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Tola.Types.ChargeRequest (
@@ -7,6 +8,7 @@ module Tola.Types.ChargeRequest (
   , mkChargeRequest, mkChargeRequest'
   , ChargeRequestState (..)
   , mkChargeRequestStatus, ChargeRequestStatus
+  , mkMockableChargeRequest, MockableChargeRequest (..), MockChargeRequest (..)
 ) where
 
 import           Control.Arrow         ((+++))
@@ -28,7 +30,6 @@ data ChargeRequest = ChargeRequest {
   , msisdn          :: Msisdn -- ^ The MSISDN for the Transaction, in full international format
   , requestType     :: Text
   , target          :: Target -- ^ The transfer target of the Transaction (e.g. Paybill, etc.)
-  -- , mac             :: Mac
   , date            :: UTCTime
 } deriving (Show, Generic)
 
@@ -63,12 +64,10 @@ mkChargeRequest t a m d sref = ChargeRequest
   , msisdn          = m
   , requestType     = "charge"
   , target          = t
-  -- , mac             = toMAC s m d
   , date            = d
   }
 
 mkChargeRequest' ::
-    -- Secret
      Target
   -> Amount
   -> Msisdn
@@ -111,10 +110,19 @@ instance A.FromJSON ChargeRequestStatus where
   parseJSON = parseTolaJSON
 
 
-mkChargeRequestStatus
-  :: ChargeRequestState
+mkChargeRequestStatus ::
+     ChargeRequestState
   -> Maybe SourceReference
   -> Maybe Text
   -> ChargeRequestStatus
 mkChargeRequestStatus = ChargeRequestStatus
+
+
+data MockChargeRequest =  MockSuccess | MockDisbursementNotificationError | MockChargeResponseError deriving (Show, Read, Generic)
+
+data MockableChargeRequest = MockableChargeRequest MockChargeRequest ChargeRequest deriving Show
+
+mkMockableChargeRequest ::
+  MockChargeRequest -> ChargeRequest -> MockableChargeRequest
+mkMockableChargeRequest = MockableChargeRequest
 
