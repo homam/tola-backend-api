@@ -88,7 +88,7 @@ doMigrationsWeb = getAndHead "/do_migrations" $ doMigrations >> text "done!"
 chargeRequestWeb :: WebApp
 chargeRequestWeb = getAndHeadAccessOrigin "/api/charge/:msisdn/:amount/:arbitref" $ do
   amount' <- mkAmount . (toRational :: Double -> Rational) <$> param "amount"
-  msisdn' <- mkMsisdn <$> param "msisdn"
+  msisdn' <- mkMsisdn . sanitizeMsisdn <$> param "msisdn"
   arbitref <- mkArbitraryReference <$> param "arbitref"
   mock <- fromMaybe MockSuccess . maybeRead <$> (param "mock" `rescue` const (return ""))
 
@@ -111,6 +111,11 @@ chargeRequestWeb = getAndHeadAccessOrigin "/api/charge/:msisdn/:amount/:arbitref
     where
       maybeRead :: Read a => String -> Maybe a
       maybeRead = fmap fst . listToMaybe . reads
+
+      sanitizeMsisdn = T.pack . go . T.unpack where
+        go full@('2':'5':'4':_) = full
+        go ('0':xs)             = go xs
+        go x                    = "254" ++ x
 
 checkChargeRequestWeb :: WebApp
 checkChargeRequestWeb = getAndHeadAccessOrigin "/api/check_charge/:chargeRequestId" $ do
