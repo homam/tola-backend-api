@@ -91,8 +91,9 @@ chargeRequestWeb = getAndHeadAccessOrigin "/api/charge/:msisdn/:amount/:arbitref
   msisdn' <- mkMsisdn . sanitizeMsisdn <$> param "msisdn"
   arbitref <- mkArbitraryReference <$> param "arbitref"
   mock <- fromMaybe MockSuccess . maybeRead <$> (param "mock" `rescue` const (return ""))
+  target' <- mkTarget <$> (param "target" `rescue` const (return "850702"))
 
-  let target' = mkTarget "777200"
+  -- let target' = mkTarget "777200"
   cr <- liftIO $ mkChargeRequest' target' amount' msisdn' arbitref
   cridKey <- insertChargeRequest cr
   let crid = fromIntegral $ fromSqlKey cridKey
