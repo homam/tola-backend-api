@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -14,11 +15,13 @@ import qualified Crypto.Hash.MD5        as MD5
 import qualified Data.Aeson             as A
 import qualified Data.Aeson.Types       as AT
 import qualified Data.ByteString.Base16 as B16
+import           Data.Data              (Data)
 import qualified Data.HashMap.Lazy      as HashMap
 import qualified Data.Text              as T
 import           Data.Text.Encoding     as E
 import           Data.Time              (UTCTime)
 import           Data.Time.Format       (defaultTimeLocale, formatTime)
+import           Data.Typeable          (Typeable)
 import           Database.Persist
 import           Database.Persist.Sql
 import           GHC.Generics
@@ -130,13 +133,36 @@ instance A.FromJSON Amount where
 
 -- | Wraps Msisdn in a newtype
 newtype Msisdn = Msisdn { unMsisdn :: T.Text }
-    deriving (Show, Read, Eq, Ord, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
+    deriving (Show, Read, Eq, Ord, Data, Typeable, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
 
 mkMsisdn :: T.Text -> Msisdn
 mkMsisdn = Msisdn
 
 class HasTolaMsisdn t where
   tolaMsisdn :: t -> Msisdn
+
+-- | Wraps Url in a newtype
+newtype Url = Url { unUrl :: T.Text }
+    deriving (Show, Read, Eq, Ord, Data, Typeable, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
+
+mkUrl :: T.Text -> Url
+mkUrl = Url
+
+-- | Wraps CampaignId in a newtype
+newtype CampaignId = CampaignId { unCampaignId :: Int }
+    deriving (Show, Read, Eq, Ord, Data, Typeable, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
+
+mkCampaignId :: Int -> CampaignId
+mkCampaignId = CampaignId
+
+
+-- | Wraps Pixel Template Id in a newtype
+newtype PixelTemplateId = PixelTemplateId { unPixelTemplateId :: Int }
+    deriving (Show, Read, Eq, Ord, Data, Typeable, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
+
+mkPixelTemplateId :: Int -> PixelTemplateId
+mkPixelTemplateId = PixelTemplateId
+
 
 -- | Wraps Source Reference in a newtype
 newtype SourceReference = SourceReference { unSourceReference :: T.Text }

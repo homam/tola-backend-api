@@ -60,6 +60,7 @@ instance MonadTolaDatabase (ActionT TL.Text (RealWebAppT IO)) where
   insertLodgementNotificationAndupdateChargeRequest = runDb . insertLodgementNotificationAndupdateChargeRequest'
   insertDisbursementNotificationAndupdateChargeRequest = runDb . insertDisbursementNotificationAndupdateChargeRequest'
   getChargeRequestStatus = runDb . getChargeRequestStatus'
+  getAllCampaigns = runDb getAllCampaigns'
 
 instance MonadTolaApi (ActionT TL.Text (RealWebAppT IO)) where
   makeChargeRequest (ChargeRequest.MockableChargeRequest _ req) = do
@@ -88,15 +89,17 @@ runWebServer db secret url (authUsername, authPassword) port app = do
   loggerVaultKey <- V.newKey
   withDetailedLoggerMiddleware
     loggerVaultKey
-    ( \logger -> withDbPool
-      db
-      ( \pool -> scottyT
-        port
-        ( runWeb
-            (appState loggerVaultKey pool)
-        )
-        (middleware logger >> app)
-      )
+    ( \logger ->
+      withDbPool
+        db
+        ( \pool ->
+          scottyT
+            port
+            ( runWeb
+                (appState loggerVaultKey pool)
+            )
+            (middleware logger >> app)
+          )
     )
     simpleStdoutLogType
     where

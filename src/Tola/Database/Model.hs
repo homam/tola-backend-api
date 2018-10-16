@@ -10,10 +10,11 @@
 
 module Tola.Database.Model where
 
-import           Data.Text                (Text)
-import qualified Data.Time                as Time
+import           Data.Text                        (Text)
+import qualified Data.Time                        as Time
+import           Database.Persist.Postgresql.Json
 import           Database.Persist.TH
-import qualified Tola.Types.ChargeRequest as ChargeRequest
+import qualified Tola.Types.ChargeRequest         as ChargeRequest
 import           Tola.Types.Common
 
 
@@ -55,4 +56,30 @@ DBChargeRequest sql=charge_request json
   responseErrorCode Int Maybe
   responseErrorMessage Text Maybe
   rawResponse Text Maybe sqltype=json
+  campaignId DBCampaignId Maybe
+  queryString Json Maybe
+
+DBPixelTemplate sql=pixel_templates
+  Id
+  creationTime Time.UTCTime default=now() MigrationOnly
+  url Text
+
+DBPixel sql=pixels json
+  Id
+  creationTime Time.UTCTime default=now() MigrationOnly
+  chargeRequestId DBChargeRequestId
+  url Url
+  success Bool Maybe
+  responseStatusCode Int Maybe
+  response Text Maybe
+  responseHeaders Json Maybe
+  pixelAmount Amount sqltype=numeric(14,5) Maybe
+
+
+DBCampaign sql=campaigns json
+  Id
+  creationTime Time.UTCTime default=now() MigrationOnly
+  name Text
+  isActive Bool
+  pixelTemplateId DBPixelTemplateId Maybe
 |]

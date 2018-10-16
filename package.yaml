@@ -59,6 +59,14 @@ dependencies:
 - monad-logger
 - monad-control
 - http-client
+- HStringTemplate # remove it?
+- template
+- random-shuffle
+- random
+- cache
+- conduit
+- resourcet
+- persistent-postgresql-json
 
 library:
   source-dirs: src

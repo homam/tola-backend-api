@@ -77,6 +77,7 @@ instance MonadTolaDatabase (ActionT TL.Text (MockWebAppT (AppState ()) IO)) wher
   insertLodgementNotificationAndupdateChargeRequest = runDb . insertLodgementNotificationAndupdateChargeRequest'
   insertDisbursementNotificationAndupdateChargeRequest = runDb . insertDisbursementNotificationAndupdateChargeRequest'
   getChargeRequestStatus = runDb . getChargeRequestStatus'
+  getAllCampaigns = runDb getAllCampaigns'
 
 
 instance MonadTolaApi (ActionT TL.Text (MockWebAppT (AppState ()) IO)) where
@@ -174,7 +175,7 @@ testAddChargeRequest appSpec =
     addChargeRequestTest :: WaiSession ()
     addChargeRequestTest = do
       _ <- getResponseBody <$> testGet200
-        "/api/charge/300000001/25.6/50% OFF ENDS NOW"
+        "/api/charge/300000001/25.6/50% OFF ENDS NOW?xcid=1&clickid=78665dg4" -- ?sxcode=gd3fPyQB&clickid=78665dg4"
       return ()
 
 testChargeRequestAndNotification :: IO ()

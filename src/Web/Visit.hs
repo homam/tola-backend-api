@@ -17,10 +17,12 @@ import qualified Data.Text                             as T
 import qualified Data.Text.Encoding                    as T
 import qualified Data.Text.Lazy                        as TL
 import           Database.Persist.Postgresql           (fromSqlKey)
+import           Network.HTTP.Types                    (parseQueryText)
 import           Network.HTTP.Types.Status             (mkStatus, status500)
 import           Tola.Types.ChargeRequest
 import           Tola.Types.Common
-import           Web.Crypto                            (fromHexId, idToHex)
+import           Web.Crypto                            (decryptSXCode,
+                                                        fromHexId, idToHex)
 import           Web.Scotty.Trans
 import           Web.ScottyHelpers
 import           Web.Types.ChargeRequestClientResponse
@@ -31,6 +33,7 @@ import           Control.Monad.IO.Class                (MonadIO)
 import           Data.Maybe                            (fromMaybe, listToMaybe)
 import           Database.Persist.Class                (Key, ToBackendKey)
 import           Database.Persist.Sql                  (SqlBackend)
+import qualified Network.Wai                           as W
 
 -- Tola
 
@@ -77,13 +80,17 @@ homeWeb :: WebApp
 homeWeb = getAndHeadAccessOrigin "/" $ do
 
   writeLog "request to /"
-  req <- liftIO $ mkChargeRequest' (mkTarget "0000") (mkAmount 23) (mkMsisdn "0292883") (mkArbitraryReference "someref")
-  _ <- insertChargeRequest req
-  res <- makeChargeRequest (mkMockableChargeRequest MockSuccess req)
-  json res
+  text ":)"
+  -- req <- liftIO $ mkChargeRequest' (mkTarget "0000") (mkAmount 23) (mkMsisdn "0292883") (mkArbitraryReference "someref")
+  -- _ <- insertChargeRequest req
+  -- res <- makeChargeRequest (mkMockableChargeRequest MockSuccess req)
+  -- json res
 
 doMigrationsWeb :: WebApp
-doMigrationsWeb = getAndHead "/do_migrations" $ doMigrations >> text "done!"
+doMigrationsWeb = getAndHead "/do_migrations" $ doMigrations >>= text . TL.fromStrict . T.concat . map (T.append "\n")
+
+allCampaignsWeb :: WebApp
+allCampaignsWeb = getAndHead "/all_campaigns" $ getAllCampaigns >>= json
 
 chargeRequestWeb :: WebApp
 chargeRequestWeb = getAndHeadAccessOrigin "/api/charge/:msisdn/:amount/:arbitref" $ do
@@ -92,9 +99,12 @@ chargeRequestWeb = getAndHeadAccessOrigin "/api/charge/:msisdn/:amount/:arbitref
   arbitref <- mkArbitraryReference <$> param "arbitref"
   mock <- fromMaybe MockSuccess . maybeRead <$> (param "mock" `rescue` const (return ""))
   target' <- mkTarget <$> (param "target" `rescue` const (return "850702"))
+  -- Unknown campaign is 2
+  campaignId' <- mkCampaignId . fromMaybe 2 . maybeRead <$> param "xcid" `rescue` const (return "2") -- either (const $ fst Campaigns.unknownCampaignId) mkCampaignId . decryptSXCode <$> param "sxcode" `rescue` const (return $ snd Campaigns.unknownCampaignId)
+  qs <- queryStringParams
 
   -- let target' = mkTarget "777200"
-  cr <- liftIO $ mkChargeRequest' target' amount' msisdn' arbitref
+  cr <- liftIO $ mkChargeRequest' target' amount' msisdn' arbitref campaignId' qs
   cridKey <- insertChargeRequest cr
   let crid = fromIntegral $ fromSqlKey cridKey
   catch (
@@ -110,13 +120,12 @@ chargeRequestWeb = getAndHeadAccessOrigin "/api/charge/:msisdn/:amount/:arbitref
     (jsonError . (displayException :: SomeException -> String))
 
     where
-      maybeRead :: Read a => String -> Maybe a
-      maybeRead = fmap fst . listToMaybe . reads
 
-      sanitizeMsisdn = T.pack . go . T.unpack where
-        go full@('2':'5':'4':_) = full
-        go ('0':xs)             = go xs
-        go x                    = "254" ++ x
+      sanitizeMsisdn = T.pack . go . T.unpack . T.replace " " "" where
+        go full@('+' : '2' : '5' : '4' : _) = full
+        go full@('2':'5':'4':_)             = full
+        go ('0':xs)                         = go xs
+        go x                                = "254" ++ x
 
 checkChargeRequestWeb :: WebApp
 checkChargeRequestWeb = getAndHeadAccessOrigin "/api/check_charge/:chargeRequestId" $ do
@@ -130,6 +139,14 @@ checkChargeRequestWeb = getAndHeadAccessOrigin "/api/check_charge/:chargeRequest
 jsonError :: (ScottyError e, Monad m) => String -> ActionT e m ()
 jsonError e = status status500 >> json (mkApiError e)
 
+queryStringParams :: Monad m => ActionT TL.Text m [(T.Text, T.Text)]
+queryStringParams = parseEncodedParams . W.rawQueryString <$> request where
+  parseEncodedParams :: Char8.ByteString -> [(T.Text, T.Text)]
+  parseEncodedParams bs =
+    [ (k, fromMaybe "" v)
+    | (k, v) <- parseQueryText bs
+    ]
+
 app :: WebApp
 app   =  homeWeb
       >> lodgementNotificationWeb
@@ -137,3 +154,8 @@ app   =  homeWeb
       >> chargeRequestWeb
       >> checkChargeRequestWeb
       >> doMigrationsWeb
+      >> allCampaignsWeb
+
+
+maybeRead :: Read a => String -> Maybe a 
+maybeRead = fmap fst . listToMaybe . reads

@@ -13,6 +13,7 @@ module Web.Crypto (
   , uniqueTimestamp, M.newMVar
   , uniqueTimestampEncrypted, decryptUniqueTimestamp
   , idToHex, fromHexId
+  , encryptSXCode, decryptSXCode
 ) where
 
 import qualified Codec.Crypto.AES           as AES
@@ -25,7 +26,15 @@ import           Data.Monoid                ((<>))
 import           Data.Time                  (UTCTime)
 import qualified Data.Time.Clock.POSIX      as POSIX
 import           Numeric                    (readHex, showHex)
+import           System.Random              (getStdGen, newStdGen, setStdGen)
+import           System.Random.Shuffle      (shuffle')
 import           Text.Read                  (readEither)
+
+shuffleIO :: [a] -> IO [a]
+shuffleIO xs = do
+  g <- newStdGen
+  setStdGen g
+  return $ shuffle' xs (length xs) g
 
 
 -- | Creates a unique timestamp generator, useful for generating unique integral Ids.
@@ -42,6 +51,7 @@ uniqueTimestamp precision mv = do
 
 algorithm :: AES.Direction -> C8.ByteString -> C8.ByteString
 algorithm = AES.crypt' AES.CFB "abcdefghijl1ertg" "abcdefghijl1ertg"
+
 
 {-
 main = do
@@ -72,6 +82,7 @@ encrypt' = C8.unpack . encrypt . C8.pack
 encrypt :: C8.ByteString -> C8.ByteString
 encrypt = B64.encode . algorithm AES.Encrypt
 
+-- > decryptFromNoEqB64 ' ' $ encryptToNoEqB64 ' ' "4841"
 encryptToNoEqB64 :: Char -> C8.ByteString -> C8.ByteString
 encryptToNoEqB64 c s =
   let pad = padStringForNoEqB64 C8.length C8.replicate c s in encrypt pad
@@ -186,3 +197,10 @@ uniqueTimestampEncrypted precision =
 -- | The reverse of 'uniqueTimestampEncrypted'
 decryptUniqueTimestamp :: String -> Either String Int
 decryptUniqueTimestamp s = readEither =<< decryptFromNoEqB64'' ' ' s
+
+---
+encryptSXCode :: Int -> IO String
+encryptSXCode i = encryptToNoEqB64' ' '  . (++ ("" ++ show i)) . take 3 . reverse  . (show :: Int -> String) <$> getTime (100000 :: Double)
+
+decryptSXCode :: String -> Either String Int
+decryptSXCode = fmap (read . drop 3) . decryptFromNoEqB64'' ' '

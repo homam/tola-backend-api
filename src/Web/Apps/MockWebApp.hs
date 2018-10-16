@@ -32,7 +32,7 @@ import           Tola.Types.ChargeResponse
 import           Tola.Types.Common
 import qualified Tola.Types.DisbursementNotification  as DisbursementNotification
 import qualified Tola.Types.LodgementNotification     as LodgementNotification
-import           Web.Crypto
+import           Web.Crypto                           (getTime, toHex)
 import           Web.Logging.DetailedLoggerMiddleware (simpleStdoutLogType, withDetailedLoggerMiddleware)
 import           Web.Logging.Logger
 import           Web.Logging.MonadLogger
@@ -78,6 +78,7 @@ instance MonadTolaDatabase (ActionT TL.Text (MockWebAppT IO)) where
   insertLodgementNotificationAndupdateChargeRequest = runDb . insertLodgementNotificationAndupdateChargeRequest'
   insertDisbursementNotificationAndupdateChargeRequest = runDb . insertDisbursementNotificationAndupdateChargeRequest'
   getChargeRequestStatus = runDb . getChargeRequestStatus'
+  getAllCampaigns = runDb getAllCampaigns'
 
 instance MonadTolaApi (ActionT TL.Text (MockWebAppT IO)) where
   makeChargeRequest (ChargeRequest.MockableChargeRequest mock req) = do
@@ -163,7 +164,7 @@ runWebServer db secret url (authUsername, authPassword) port app = do
       appState loggerVaultKey pool = AppState {
           appVaultLoggerKey = loggerVaultKey
         , appTolaApiConfig  = tolaApiConfig'
-        , appDbPool = pool
+        , appDbPool         = pool
       }
       tolaApiConfig' = TolaApiConfig {
           tolaApiBasicAuth = (authUsername, authPassword)
