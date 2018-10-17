@@ -100,7 +100,7 @@ chargeRequestWeb = getAndHeadAccessOrigin "/api/charge/:msisdn/:amount/:arbitref
   mock <- fromMaybe MockSuccess . maybeRead <$> (param "mock" `rescue` const (return ""))
   target' <- mkTarget <$> (param "target" `rescue` const (return "850702"))
   -- Unknown campaign is 2
-  campaignId' <- mkCampaignId . fromMaybe 2 . maybeRead <$> param "xcid" `rescue` const (return "2") -- either (const $ fst Campaigns.unknownCampaignId) mkCampaignId . decryptSXCode <$> param "sxcode" `rescue` const (return $ snd Campaigns.unknownCampaignId)
+  campaignId' <- mkOuiSysCampaignId . fromMaybe 2 . maybeRead <$> param "cid" `rescue` const (return "2") -- either (const $ fst Campaigns.unknownCampaignId) mkCampaignId . decryptSXCode <$> param "sxcode" `rescue` const (return $ snd Campaigns.unknownCampaignId)
   qs <- queryStringParams
 
   -- let target' = mkTarget "777200"

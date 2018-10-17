@@ -81,5 +81,7 @@ DBCampaign sql=campaigns json
   creationTime Time.UTCTime default=now() MigrationOnly
   name Text
   isActive Bool
+  ouisysCampaignId OuiSysCampaignId
   pixelTemplateId DBPixelTemplateId Maybe
+  UniqueOuiSysCampaignId ouisysCampaignId
 |]

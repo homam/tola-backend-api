@@ -56,19 +56,24 @@ class MonadTolaDatabase m where
 
 --
 
-insertChargeRequest' :: Insert ChargeRequest.ChargeRequest DBChargeRequest
-insertChargeRequest' req = insert $
-  DBChargeRequest   Nothing
-                    Nothing
-                    (ChargeRequest.amount req)
-                    (ChargeRequest.msisdn req)
-                    ChargeRequest.ChargeRequestCreated
-                    Nothing
-                    Nothing
-                    Nothing
-                    Nothing
-                    (Just $ toSqlKey $ fromIntegral $ unCampaignId $ ChargeRequest.campaignId req)
-                    (Just $ Json $ A.object $ map (\(k, v) -> k .= v) $ ChargeRequest.queryString req)
+-- insertChargeRequest' :: Insert ChargeRequest.ChargeRequest DBChargeRequest
+insertChargeRequest' req = do
+  campaignId <- fmap getCampaignId <$> selectFirst [DBCampaignOuisysCampaignId ==. ChargeRequest.ouiSysCampaignId req] []
+  insert $
+    DBChargeRequest   Nothing
+                      Nothing
+                      (ChargeRequest.amount req)
+                      (ChargeRequest.msisdn req)
+                      ChargeRequest.ChargeRequestCreated
+                      Nothing
+                      Nothing
+                      Nothing
+                      Nothing
+                      campaignId -- (Just $ toSqlKey $ fromIntegral $ unOuiSysCampaignId $ ChargeRequest.ouiSysCampaignId req)
+                      (Just $ Json $ A.object $ map (\(k, v) -> k .= v) $ ChargeRequest.queryString req)
+  where
+  getCampaignId :: Entity DBCampaign -> Key DBCampaign
+  getCampaignId (Entity k _) = k
 
 updateChargeRequestWithResponse' :: Update Integer ChargeResponse.ChargeResponse
 updateChargeRequestWithResponse' chargeRequestId =

@@ -6,7 +6,6 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 
-
 module Tola.Types.Common (
     module Tola.Types.Common
 ) where
@@ -104,6 +103,12 @@ newtype Amount = Amount { unAmount :: Rational } deriving (Show, Generic)
 
 mkAmount :: Rational -> Amount
 mkAmount = Amount
+
+newtype OuiSysCampaignId = OuiSysCampaignId { unOuiSysCampaignId :: Int } 
+  deriving (Show, Read, Eq, Ord, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
+
+mkOuiSysCampaignId :: Int -> OuiSysCampaignId
+mkOuiSysCampaignId = OuiSysCampaignId
 
 -- | Tola passes Amount as String in JSON
 instance PersistField Amount where

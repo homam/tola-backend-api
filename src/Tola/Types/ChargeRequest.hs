@@ -22,17 +22,17 @@ import           Tola.Imports
 import           Tola.Types.Common
 
 data ChargeRequest = ChargeRequest {
-    amount          :: Amount
-  , amounttype      :: Text -- ^ Whether the amount is in units or centile units (e.g. £ or pence)
-  , channel         :: Text
-  , currency        :: Text -- ^ The ISO 4217 currency code for this Transaction
-  , sourcereference :: ArbitraryReference
-  , msisdn          :: Msisdn -- ^ The MSISDN for the Transaction, in full international format
-  , requestType     :: Text
-  , target          :: Target -- ^ The transfer target of the Transaction (e.g. Paybill, etc.)
-  , date            :: UTCTime
-  , campaignId      :: CampaignId
-  , queryString     :: [(Text, Text)]
+    amount            :: Amount
+  , amounttype        :: Text -- ^ Whether the amount is in units or centile units (e.g. £ or pence)
+  , channel           :: Text
+  , currency          :: Text -- ^ The ISO 4217 currency code for this Transaction
+  , sourcereference   :: ArbitraryReference
+  , msisdn            :: Msisdn -- ^ The MSISDN for the Transaction, in full international format
+  , requestType       :: Text
+  , target            :: Target -- ^ The transfer target of the Transaction (e.g. Paybill, etc.)
+  , date              :: UTCTime
+  , ouiSysCampaignId  :: OuiSysCampaignId
+  , queryString       :: [(Text, Text)]
 } deriving (Show, Generic)
 
 instance HasTolaMsisdn ChargeRequest where
@@ -56,21 +56,21 @@ mkChargeRequest ::
   -> Msisdn
   -> UTCTime
   -> ArbitraryReference
-  -> CampaignId
+  -> OuiSysCampaignId
   -> [(Text, Text)]
   -> ChargeRequest
 mkChargeRequest t a m d sref campId qs = ChargeRequest
-  { amount          = a
-  , amounttype      = "unit"
-  , channel         = "KENYA.SAFARICOM"
-  , currency        = "KES"
-  , sourcereference = sref
-  , msisdn          = m
-  , requestType     = "charge"
-  , target          = t
-  , date            = d
-  , campaignId      = campId
-  , queryString     = qs
+  { amount             = a
+  , amounttype         = "unit"
+  , channel            = "KENYA.SAFARICOM"
+  , currency           = "KES"
+  , sourcereference    = sref
+  , msisdn             = m
+  , requestType        = "charge"
+  , target             = t
+  , date               = d
+  , ouiSysCampaignId   = campId
+  , queryString        = qs
   }
 
 mkChargeRequest' ::
@@ -78,7 +78,7 @@ mkChargeRequest' ::
   -> Amount
   -> Msisdn
   -> ArbitraryReference
-  -> CampaignId
+  -> OuiSysCampaignId
   -> [(Text, Text)]
   -> IO ChargeRequest
 mkChargeRequest' t a m sref campId qs = do
