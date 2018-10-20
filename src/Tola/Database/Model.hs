@@ -67,14 +67,14 @@ DBPixelTemplate sql=pixel_templates
 DBPixel sql=pixels json
   Id
   creationTime Time.UTCTime default=now() MigrationOnly
-  chargeRequestId DBChargeRequestId
+  chargeRequestId DBChargeRequestId  
   url Url
   success Bool Maybe
   responseStatusCode Int Maybe
   response Text Maybe
   responseHeaders Json Maybe
   pixelAmount Amount sqltype=numeric(14,5) Maybe
-
+  -- pixelTemplateId DBPixelTemplateId Maybe
 
 DBCampaign sql=campaigns json
   Id
@@ -84,4 +84,29 @@ DBCampaign sql=campaigns json
   ouisysCampaignId OuiSysCampaignId
   pixelTemplateId DBPixelTemplateId Maybe
   UniqueOuiSysCampaignId ouisysCampaignId
+
+DBRockmanPixel sql=rockman_pixels
+  Id
+  creationTime Time.UTCTime default=now() MigrationOnly
+  data Text Maybe sqltype=json
+  chargeRequestId DBChargeRequestId
+  success Bool
+  responseStatusCode Int
+
+DBRockmanPixelInput sql=DBRockmanPixelInput MigrationOnly
+  chargeRequestId DBChargeRequestId
+  name Text
+  affiliateId AffiliateId
+  msisdn Msisdn
+  queryString Json Maybe
+  saleTime Time.UTCTime Maybe
+
+DBPixelInput sql=DBPixelInput MigrationOnly
+  Id
+  name Text
+  affiliateId AffiliateId
+  msisdn Msisdn
+  queryString Json Maybe
+  url Text
+  saleTime Time.UTCTime Maybe
 |]

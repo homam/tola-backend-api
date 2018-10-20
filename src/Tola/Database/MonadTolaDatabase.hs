@@ -6,6 +6,8 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE QuasiQuotes #-}
+
 
 module Tola.Database.MonadTolaDatabase (
   module Tola.Database.MonadTolaDatabase
@@ -19,10 +21,12 @@ import           Control.Monad.Trans.Class           (MonadTrans, lift)
 import           Control.Monad.Trans.Control         (MonadBaseControl)
 import           Control.Monad.Trans.Reader          (ReaderT (..))
 import           Data.Aeson                          ((.=))
+import qualified Data.ByteString.Lazy as Char8
 import qualified Data.Aeson                          as A
 import qualified Data.Map                            as M
 import           Data.Pool                           (Pool)
 import           Data.Text                           (Text, unpack)
+import qualified Data.Text.Encoding as Encoding
 import           Database.Persist                    hiding (Update)
 import           Database.Persist.Postgresql         hiding (Update)
 import           Database.Persist.Postgresql.Json    (Json (..))
@@ -35,7 +39,9 @@ import qualified Tola.Types.ChargeResponse           as ChargeResponse
 import           Tola.Types.Common
 import qualified Tola.Types.DisbursementNotification as DisbursementNotification
 import qualified Tola.Types.LodgementNotification    as LodgementNotification
-
+import NeatInterpolation 
+import qualified Data.Time as Time
+import Data.Maybe (fromMaybe)
 
 
 type TolaPool = Pool SqlBackend
@@ -187,7 +193,7 @@ getAllCampaigns' =
 -}
 
 getAllCampaigns' :: MonadIO m => ReaderT SqlBackend m [String]
-getAllCampaigns' = map (\(_cr, Entity _ c, _p) -> unpack $ dBCampaignName c ) <$> getPixelsToBeFired
+getAllCampaigns' = map (\(Entity _ input) -> unpack $ dBPixelInputName input ) <$> getPixelsToBeFired
 
 
 -- getPixelsToBeFired
@@ -199,30 +205,96 @@ getAllCampaigns' = map (\(_cr, Entity _ c, _p) -> unpack $ dBCampaignName c ) <$
 
 getPixelsToBeFired ::
      MonadIO m
-  => ReaderT SqlBackend m [(Entity DBChargeRequest, Entity DBCampaign, Entity DBPixelTemplate)]
+  => ReaderT SqlBackend m [Entity DBPixelInput]
 getPixelsToBeFired =
-    rawSql "select ??, ??, ?? from charge_request  \n\
-      \ inner join campaigns on charge_request.campaign_id = campaigns.id \n\
-      \ inner join pixel_templates on campaigns.pixel_template_id = pixel_templates.id \n\
-      \ where charge_request.state = 'SuccessDisbursementNotificationReceived' \n\
-      \   and charge_request.creation_time > now() - 24 * interval '1 hour' \n\
-      \   and (select count(*) from pixels where pixels.charge_request_id = charge_request.id) = 0 \n\
-      \ ; \n\
-      \ "
-      []
+    rawSql [text|
+      select ?? from (
+        with OUISYSCampaigns as (
+          select * from dblink('os_ui_server',$$REDSHIFT$$
+            select c.id as campaign_id, s.affiliate_id, s.offer_id 
+            from campaigns c 
+            inner join sources s on c.source_id = s.id 
+          $$REDSHIFT$$) as t1 (campaign_id int, affiliate_id text, offer_id int)
+        )
+        ,
+        Pixels as (
+        select charge_request.id as id, campaigns.name as name, c.affiliate_id, charge_request.msisdn as msisdn, charge_request.query_string as query_string, pixel_templates.url as url, disbursement_notifications.creation_time as sale_time  
+          from charge_request  
+          inner join campaigns on charge_request.campaign_id = campaigns.id 
+          inner join pixel_templates on campaigns.pixel_template_id = pixel_templates.id 
+          left join disbursement_notifications on disbursement_notifications.id = charge_request.disbursement_notification_id
+          left join OUISYSCampaigns c on c.campaign_id = campaigns.ouisys_campaign_id 
+          where charge_request.state = 'SuccessDisbursementNotificationReceived' 
+            and charge_request.creation_time > now() - 24 * interval '1 hour' 
+            and (select count(*) from pixels where pixels.charge_request_id = charge_request.id) = 0 
+        )
+
+        select * from Pixels
+      ) as "DBPixelInput";
+    |]
+    []
+         
 
 getAllPixelsToBeFired' ::
      MonadIO m
-  => ReaderT SqlBackend m [(Text, Key DBChargeRequest, Url, Msisdn, Pixels.Types.QueryString)]
-getAllPixelsToBeFired' = map go <$> getPixelsToBeFired where
-  go (Entity crKey cr, Entity _ c, Entity _ px) =
-    ( dBCampaignName c
-    , crKey
-    , mkUrl $ dBPixelTemplateUrl px
-    , dBChargeRequestMsisdn cr
-    , maybe M.empty jsonToMap $ (dBChargeRequestQueryString cr)
+  => ReaderT SqlBackend m [(Text, Key DBPixelInput, AffiliateId, Time.UTCTime, Url, Msisdn, Pixels.Types.QueryString)]
+getAllPixelsToBeFired' = do
+  now <- liftIO Time.getCurrentTime
+  map (go now) <$> getPixelsToBeFired 
+  where
+    go now (Entity crKey input) =
+      ( dBPixelInputName input
+      , crKey
+      , dBPixelInputAffiliateId input
+      , fromMaybe now (dBPixelInputSaleTime input)
+      , mkUrl $ dBPixelInputUrl input
+      , dBPixelInputMsisdn input
+      , maybe M.empty jsonToMap $ (dBPixelInputQueryString input)
+      )
+
+
+getAllRockmanPixelsToBeFired'' :: (Monad m, MonadIO m)
+  => ReaderT SqlBackend m [Entity DBRockmanPixelInput]
+getAllRockmanPixelsToBeFired'' = rawSql [text| 
+    select ?? from (
+    with OUISYSCampaigns as (
+      select * from dblink('os_ui_server',$$ASSROCK$$
+        select c.id as campaign_id, s.affiliate_id, s.offer_id 
+        from campaigns c 
+        inner join sources s on c.source_id = s.id 
+      $$ASSROCK$$) as t1 (campaign_id int, affiliate_id text, offer_id int)
+    )
+    ,
+    Pixels as (
+    select 0 as id, charge_request.id as charge_request_id, campaigns.name as name, c.affiliate_id, charge_request.msisdn as msisdn, charge_request.query_string as query_string, disbursement_notifications.creation_time as sale_time  
+      from charge_request  
+      inner join campaigns on charge_request.campaign_id = campaigns.id 
+      left join disbursement_notifications on disbursement_notifications.id = charge_request.disbursement_notification_id
+      left join OUISYSCampaigns c on c.campaign_id = campaigns.ouisys_campaign_id 
+      left join rockman_pixels on rockman_pixels.charge_request_id = charge_request.id
+      where charge_request.state = 'SuccessDisbursementNotificationReceived' 
+        and charge_request.creation_time > now() - 24 * interval '1 hour' 
+        and rockman_pixels.id is null
     )
 
+    select * from Pixels
+    ) as "DBRockmanPixelInput";
+  |] []
+
+getAllRockmanPixelsToBeFired' :: (Monad m, MonadIO m)
+  => ReaderT SqlBackend m [(Text, Key DBChargeRequest, AffiliateId, Time.UTCTime, Msisdn, Pixels.Types.QueryString)]
+getAllRockmanPixelsToBeFired' = do
+  now <- liftIO Time.getCurrentTime
+  map (go now) <$> getAllRockmanPixelsToBeFired''
+ where
+  go now (Entity crKey input) =
+    ( dBRockmanPixelInputName input
+    , dBRockmanPixelInputChargeRequestId input
+    , dBRockmanPixelInputAffiliateId input
+    , fromMaybe now (dBRockmanPixelInputSaleTime input)
+    , dBRockmanPixelInputMsisdn input
+    , maybe M.empty jsonToMap $ (dBRockmanPixelInputQueryString input)
+    )
 
 jsonToMap :: Json -> Pixels.Types.QueryString
 jsonToMap (Json v) = Pixels.Types.queryStringFromJson v
@@ -239,9 +311,22 @@ insertAPixel' (chargeRequestId, url, success', responseStatusCode, response) = i
     Nothing -- headers
     Nothing -- pixel amount
 
+insertRockmanPixel' :: Insert (Key DBChargeRequest, A.Value, Bool, Int) DBRockmanPixel
+insertRockmanPixel' (chargeRequestId, postData, success', responseStatusCode) = insert $
+  DBRockmanPixel
+    (Just $ Encoding.decodeUtf8 $ Char8.toStrict  $ A.encode postData)
+    chargeRequestId
+    success'
+    responseStatusCode
+
+
 class Monad m => MonadPixelsDatabase m where
-  getAllPixelsToBeFired :: m [(Text, Key DBChargeRequest, Url, Msisdn, Pixels.Types.QueryString)]
+  getAllPixelsToBeFired :: m [(Text, Key DBPixelInput, AffiliateId, Time.UTCTime, Url, Msisdn, Pixels.Types.QueryString)]
   insertAPixel :: (Key DBChargeRequest, Url, Bool, Int, Text) -> m (Key DBPixel)
+
+class Monad m => MonadRockmanPixelDatabase m where
+  getAllRockmanPixelsToBeFired :: m [(Text, Key DBChargeRequest, AffiliateId, Time.UTCTime, Msisdn, Pixels.Types.QueryString)]
+  insertRockmanPixel :: (Key DBChargeRequest, A.Value, Bool, Int) -> m (Key DBRockmanPixel)
 
 --
 

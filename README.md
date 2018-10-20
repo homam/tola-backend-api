@@ -100,3 +100,17 @@ chargeAndWait("254748103132", "PAY_NOW", 10)
   .then(x => console.log('Charge Received ', x))
   .catch(console.error)
 ```
+
+## Rockman Pixels
+
+Run the executable with `--pixels` param:
+
+```
+db="..." \
+port=3001 \
+tola_username="..." \
+tola_password="..." \
+tola_url="https://api.ea.oxygen8.com/sammedia" \
+tola_secret="..." \
+stack exec tola-backend-api-exe -- --pixels
+```

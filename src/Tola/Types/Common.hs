@@ -146,6 +146,16 @@ mkMsisdn = Msisdn
 class HasTolaMsisdn t where
   tolaMsisdn :: t -> Msisdn
 
+-- | Wraps AffiliateId in a newtype
+newtype AffiliateId = AffiliateId { unAffiliateId :: T.Text }
+    deriving (Show, Read, Eq, Ord, Data, Typeable, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)
+
+mkAffiliateId :: T.Text -> AffiliateId
+mkAffiliateId = AffiliateId
+
+class HasTolaAffiliateId t where
+  tolaAffiliateId :: t -> AffiliateId
+
 -- | Wraps Url in a newtype
 newtype Url = Url { unUrl :: T.Text }
     deriving (Show, Read, Eq, Ord, Data, Typeable, Generic, A.ToJSON, A.FromJSON, PersistField, PersistFieldSql)

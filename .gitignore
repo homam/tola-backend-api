@@ -3,6 +3,6 @@
 .Test-src/
 start.sh
 start-ghci*.sh
-start-real.sh
+start-real*.sh
 start-mocked.sh
 tola-backend-api.cabal

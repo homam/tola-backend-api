@@ -64,6 +64,7 @@ formatPixelUrl pxin templ = mkUrl $ TL.toStrict $ substitute (unUrl templ) conte
       (CI.mk k)
       (queryString pxin)
   context' "msisdn" = maybe "NO_MSISDN" (unpack . unMsisdn) (msisdn pxin)
+  context' "rockman_id" = context' "q_rockman_id"
   context' k = "KEY_NOT_DEFINED (" ++ k ++ ")"
 
 {--

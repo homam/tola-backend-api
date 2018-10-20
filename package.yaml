@@ -67,6 +67,8 @@ dependencies:
 - conduit
 - resourcet
 - persistent-postgresql-json
+- neat-interpolation
+- uri-encode
 
 library:
   source-dirs: src

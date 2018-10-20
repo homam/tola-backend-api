@@ -37,7 +37,7 @@ import           Data.Time.Clock.POSIX          as POSIX
 import qualified Network.URI.Encode            as URIEncoding
 import           Data.Maybe                     ( fromMaybe )
 import Text.Read (readMaybe)
-import Data.Monoid ((<>))
+
 
 
 data AppState = AppState {
@@ -48,19 +48,19 @@ data AppState = AppState {
 instance HasDbPool AppState where
   dbPool = appDbPool
 
-newtype RealRockmanPixelsApp m a = RealRockmanPixelsApp { unRealRockmanPixelsApp ::  ReaderT AppState m a }
+newtype RealWebAppT m a = RealWebAppT { unRealWebAppT ::  ReaderT AppState m a }
   deriving (Applicative, Functor, Monad, MonadIO, MonadReader AppState, MonadTrans, MonadThrow, MonadCatch)
 
-instance MonadBase IO (RealRockmanPixelsApp IO) where
+instance MonadBase IO (RealWebAppT IO) where
   liftBase = liftBaseDefault
 
-instance MonadBaseControl IO (RealRockmanPixelsApp IO) where
-  type StM (RealRockmanPixelsApp IO) a = a
-  liftBaseWith f = RealRockmanPixelsApp $ liftBaseWith $ \q -> f (q . unRealRockmanPixelsApp)
-  restoreM =  RealRockmanPixelsApp . restoreM
+instance MonadBaseControl IO (RealWebAppT IO) where
+  type StM (RealWebAppT IO) a = a
+  liftBaseWith f = RealWebAppT $ liftBaseWith $ \q -> f (q . unRealWebAppT)
+  restoreM =  RealWebAppT . restoreM
 
 
-instance MonadIO m => MonadLogger (RealRockmanPixelsApp m) where
+instance MonadIO m => MonadLogger (RealWebAppT m) where
   writeLog str = do
     AppState _ appLogger' <- ask
     liftIO $ do
@@ -68,36 +68,52 @@ instance MonadIO m => MonadLogger (RealRockmanPixelsApp m) where
       Char8.putStrLn str
       MVar.putMVar appLogger' ()
 
-instance MonadRockmanPixelDatabase (RealRockmanPixelsApp IO) where
+
+
+instance MonadPixelsDatabase (RealWebAppT IO) where
+  getAllPixelsToBeFired = runDb' getAllPixelsToBeFired'
+  insertAPixel = runDb' . insertAPixel'
+
+
+instance MonadRockmanPixelDatabase (RealWebAppT IO) where
   getAllRockmanPixelsToBeFired = runDb' getAllRockmanPixelsToBeFired'
   insertRockmanPixel = runDb' . insertRockmanPixel'
 
+-- main :: RealWebAppT IO [(Text, Text)]
+-- main' app connStr = runNoLoggingT $ withPostgresqlPool connStr 10 $ liftSqlPersistMPool app
+-- main = Char8.pack <$> Env.getEnv "db" >>= main' app
+-- main' app connStr = withDbPool' connStr app
 
+-- startApp dkb app = withDbPool db (\pool -> runReaderT (unRealWebAppT app) (AppState pool))
+
+-- {-
 main :: IO ()
 main = do
   db <- Char8.pack <$> Env.getEnv "db"
-  Char8.putStrLn $ "connected to " <> db
+  print db
   appLogger' <- MVar.newMVar ()
-  withDbPool db $ \ pool -> runReaderT (unRealRockmanPixelsApp app) (AppState pool appLogger')
+  withDbPool db $ \ pool -> runReaderT (unRealWebAppT app) (AppState pool appLogger')
 
 
-app :: RealRockmanPixelsApp IO ()
+
+app :: RealWebAppT IO ()
 app = do
-  pixels <- take 10 <$> getAllRockmanPixelsToBeFired
-  let totalPixels = length pixels
-  writeLog $ Char8.pack $ "Total Pixels to be Fired: " ++ show totalPixels
-  mapM_ (\(p, i) -> do 
-      writeLog $ Char8.pack $ "Firing Pixel " ++ show i ++ " / " ++ show totalPixels
-      fireAndRecordRockmanPixel p
-      writeLog $ Char8.pack $ "Pixel Fired: " ++ show i ++ " / " ++ show totalPixels
-      liftIO $ Concurrent.threadDelay (400*1000)
-    ) (pixels `zip` [(1::Int) ..])
-  writeLog "All Pixels Fired!"
-  liftIO $ Concurrent.threadDelay (30*1000*1000)
-  app
+  pixels <- getAllRockmanPixelsToBeFired
+  -- liftIO $ print pixels
+  -- liftIO $ mapM_ (Char8.putStrLn . toStrict . A.encode .  makeRockmanJSON) pixels
+
+  mapM_ (\x -> liftIO . putStrLn =<< T.unpack . snd <$> fireAndRecordRockmanPixel x) (take 1 pixels)
+
+  -- pixelResults <- mapM mapPixels pixels
+  -- pixelResults <- firePixels pixelUrls
+  -- liftIO $ print pixelResults
+
+  -- liftIO $ Concurrent.threadDelay (10*1000*1000)
+  -- app
+
   where
 
-  fireAndRecordRockmanPixel args@(_campaignName, chargeRequestKey, _affiliateId, _saleTime, _msisdn, _qs) = do
+  fireAndRecordRockmanPixel args@(_campaignName, chargeRequestKey, affiliateId, saleTime, msisdn, qs) = do
     let postData = makeRockmanJSON args
     (status, responseBody) <- fireSaleToRockmnan postData
     key <- recordRockmanPixel chargeRequestKey postData status
@@ -105,6 +121,23 @@ app = do
 
   recordRockmanPixel chargeRequestKey postData status@(Status.Status statusCode _) =
     insertRockmanPixel (chargeRequestKey, postData , Status.statusIsSuccessful status, statusCode)
+
+  mapPixels (_campaignName, chargeRequestKey, urlTemplate, msisdn, qs) = do
+    let url = PT.formatPixelUrl (PT.PixelInput (Just msisdn) qs) urlTemplate
+    (status, body) <-
+      catchAll
+        (getUrl url)
+        (\e -> do
+          let errString = Encoding.encodeUtf8 $ T.pack $ show e
+          return (Status.Status 0 errString, errString)
+        )
+    let statusCode = Status.statusCode status
+    let body' = case (Encoding.decodeUtf8' body) of
+                      Left _  -> Encoding.decodeUtf8 $ Base64.encode body
+                      Right t -> t
+    result <- insertAPixel (toSqlKey $ fromIntegral $ fromSqlKey chargeRequestKey, url, statusCode == 200, statusCode, body')
+    liftIO $ Concurrent.threadDelay (200*1000)
+    return result
 
   fireSaleToRockmnan postData = do
     let url = mkUrl "http://rockman-api.sam-media.com:8002/api/v1/event/sale" 
@@ -149,7 +182,6 @@ app = do
       , "scenario_name" .= ("tola" :: T.Text)
       , "device_class" .= ("smart" :: T.Text)
     ]
-  
   lookup' :: (CI.FoldCase s, Ord s) => s -> Map.Map (CI.CI s) a -> Maybe a
   lookup' k = Map.lookup (CI.mk k)
 
@@ -203,3 +235,4 @@ postUrl url d = do
   writeLog (Char8.pack $ show status)
   writeLog (Char8.pack $ show headers)
   return (status, strictBody)
+
