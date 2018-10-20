@@ -35,6 +35,7 @@ import qualified Data.ByteString.Lazy      as LBS
 import           Data.Default.Class        (Default (def))
 import           Data.IORef.Lifted
 import           Data.Monoid               (mconcat, (<>))
+import qualified Data.Text as T
 import           Data.Text.Encoding        (decodeUtf8')
 import           Data.Time                 (NominalDiffTime, diffUTCTime,
                                             getCurrentTime)
@@ -187,6 +188,10 @@ getRequestBody req = do
 tellLog :: IORef.IORef [BS.ByteString] -> VaultLogger
 tellLog ref bs = IORef.modifyIORef ref (bs :)
 
+isChargeRequestPath :: [T.Text] -> Bool
+isChargeRequestPath ("api":"check_charge":_) = True
+isChargeRequestPath _ = False
+
 detailedMiddleware' :: V.Key VaultLogger -> Callback
                     -> IO Integer
                     -> (Color -> BS.ByteString -> [BS.ByteString])
@@ -196,6 +201,11 @@ detailedMiddleware' :: V.Key VaultLogger -> Callback
 detailedMiddleware' loggerVaultKey cb uniqueIdGenerator ansiColor ansiMethod ansiStatusCode app req1 sendResponse = do
     requestId <- fmap (S8.pack . show) uniqueIdGenerator
     let req = addHeader ("X-RequestId", requestId) req1
+    if isChargeRequestPath (pathInfo req)
+        then app req sendResponse
+        else detailedMiddlewareNoFilter requestId loggerVaultKey cb ansiColor ansiMethod ansiStatusCode app req sendResponse
+
+detailedMiddlewareNoFilter requestId loggerVaultKey cb ansiColor ansiMethod ansiStatusCode app req sendResponse = do
 
     (req', body) <-
         -- second tuple item should not be necessary, but a test runner might mess it up
@@ -275,7 +285,7 @@ detailedMiddleware' loggerVaultKey cb uniqueIdGenerator ansiColor ansiMethod ans
 
   where
     allPostParams body =
-        case getRequestBodyType req1 of
+        case getRequestBodyType req of
             Nothing -> return ([], [])
             Just rbt -> do
                 ichunks <- newIORef body
