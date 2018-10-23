@@ -117,6 +117,7 @@ instance MonadTolaApi (ActionT TL.Text (MockWebAppT IO)) where
 
               let dnotification = disbursementNotificationCtor
                     secret
+                    (Just "John Smit")
                     (mkOperatorReference "operator.ref")
                     sourceRef
                     nowd

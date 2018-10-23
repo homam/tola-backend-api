@@ -25,7 +25,8 @@ import           Tola.Types.Common
 -- | A Disbursement Notification occurs when an asynchronous Disbursement Request is received and queued by Tola,
 -- and subsequently the EMoney supplier confirms that the transaction has completed.
 data DisbursementNotificationDetails = DisbursementNotificationDetails {
-    amount            :: Amount
+    accountname       :: Maybe Text
+  , amount            :: Amount
   , amounttype        :: Text
   , channel           :: Text
   , currency          :: Text
@@ -139,6 +140,7 @@ mkDisbursementNotification _        = mkSuccessDisbursementNotification
 
 mkDisbursementNotificationDetails
   :: Secret
+  -> Maybe Text
   -> Amount
   -> Msisdn
   -> ArbitraryReference
@@ -148,8 +150,10 @@ mkDisbursementNotificationDetails
   -> Text
   -> UTCTime
   -> DisbursementNotificationDetails
-mkDisbursementNotificationDetails s a m cref oref sref t rtype d = DisbursementNotificationDetails
-  { amount          = a
+mkDisbursementNotificationDetails s accn a m cref oref sref t rtype d = DisbursementNotificationDetails
+  { 
+    accountname     = accn
+  , amount          = a
   , amounttype      = "unit"
   , channel         = "KENYA.SAFARICOM"
   , currency        = "KES"
@@ -171,14 +175,16 @@ mkFailureDisbursementNotification = FailureDisbursementNotification
 
 fromChargeRequest
   :: Secret
+  -> Maybe Text
   -> OperatorReference
   -> SourceReference
   -> UTCTime
   -> CR.ChargeRequest
   -> DisbursementNotification
-fromChargeRequest s oref sref d cr =
+fromChargeRequest s accn oref sref d cr =
   mkDisbursementNotification (Right ()) $ mkDisbursementNotificationDetails
     s
+    accn
     (CR.amount cr)
     (CR.msisdn cr)
     (CR.sourcereference cr)
@@ -191,14 +197,16 @@ fromChargeRequest s oref sref d cr =
 fromChargeRequestAndError ::
      Text
   -> Secret
+  -> Maybe Text
   -> OperatorReference
   -> SourceReference
   -> UTCTime
   -> CR.ChargeRequest
   -> DisbursementNotification
-fromChargeRequestAndError err s oref sref d cr =
+fromChargeRequestAndError err s accn oref sref d cr =
   mkDisbursementNotification (Left err) $ mkDisbursementNotificationDetails
     s
+    accn
     (CR.amount cr)
     (CR.msisdn cr)
     (CR.sourcereference cr)
