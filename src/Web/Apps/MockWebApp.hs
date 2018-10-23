@@ -73,7 +73,7 @@ instance MonadLogger (ActionT TL.Text (MockWebAppT IO)) where
 
 instance MonadTolaDatabase (ActionT TL.Text (MockWebAppT IO)) where
   doMigrations = runDb doMigrations'
-  insertChargeRequest = runDb . insertChargeRequest'
+  insertChargeRequest cr cid = runDb . insertChargeRequest' cr cid
   updateChargeRequestWithResponse i = runDb . updateChargeRequestWithResponse' i
   insertLodgementNotificationAndupdateChargeRequest = runDb . insertLodgementNotificationAndupdateChargeRequest'
   insertDisbursementNotificationAndupdateChargeRequest = runDb . insertDisbursementNotificationAndupdateChargeRequest'

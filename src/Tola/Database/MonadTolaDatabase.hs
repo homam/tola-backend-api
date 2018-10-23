@@ -52,7 +52,7 @@ class HasDbPool t where
 
 class MonadTolaDatabase m where
   doMigrations :: m [Text]
-  insertChargeRequest :: ChargeRequest.ChargeRequest -> m (Key DBChargeRequest)
+  insertChargeRequest :: ChargeRequest.ChargeRequest -> OuiSysCampaignId -> [(Text, Text)] -> m (Key DBChargeRequest)
   updateChargeRequestWithResponse :: Integer -> ChargeResponse.ChargeResponse -> m ()
   insertLodgementNotificationAndupdateChargeRequest :: LodgementNotification.LodgementNotification -> m (Key DBLodgementNotification)
   insertDisbursementNotificationAndupdateChargeRequest :: DisbursementNotification.DisbursementNotification -> m (Key DBDisbursementNotification)
@@ -63,8 +63,8 @@ class MonadTolaDatabase m where
 --
 
 -- insertChargeRequest' :: Insert ChargeRequest.ChargeRequest DBChargeRequest
-insertChargeRequest' req = do
-  campaignId <- fmap getCampaignId <$> selectFirst [DBCampaignOuisysCampaignId ==. ChargeRequest.ouiSysCampaignId req] []
+insertChargeRequest' req ouiSysCampaignId queryString  = do
+  campaignId <- fmap getCampaignId <$> selectFirst [DBCampaignOuisysCampaignId ==. ouiSysCampaignId] []
   insert $
     DBChargeRequest   Nothing
                       Nothing
@@ -76,7 +76,7 @@ insertChargeRequest' req = do
                       Nothing
                       Nothing
                       campaignId -- (Just $ toSqlKey $ fromIntegral $ unOuiSysCampaignId $ ChargeRequest.ouiSysCampaignId req)
-                      (Just $ Json $ A.object $ map (\(k, v) -> k .= v) $ ChargeRequest.queryString req)
+                      (Just $ Json $ A.object $ map (\(k, v) -> k .= v) $ queryString)
   where
   getCampaignId :: Entity DBCampaign -> Key DBCampaign
   getCampaignId (Entity k _) = k

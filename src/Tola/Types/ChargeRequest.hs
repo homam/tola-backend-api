@@ -31,8 +31,6 @@ data ChargeRequest = ChargeRequest {
   , requestType       :: Text
   , target            :: Target -- ^ The transfer target of the Transaction (e.g. Paybill, etc.)
   , date              :: UTCTime
-  , ouiSysCampaignId  :: OuiSysCampaignId
-  , queryString       :: [(Text, Text)]
 } deriving (Show, Generic)
 
 instance HasTolaMsisdn ChargeRequest where
@@ -56,10 +54,8 @@ mkChargeRequest ::
   -> Msisdn
   -> UTCTime
   -> ArbitraryReference
-  -> OuiSysCampaignId
-  -> [(Text, Text)]
   -> ChargeRequest
-mkChargeRequest t a m d sref campId qs = ChargeRequest
+mkChargeRequest t a m d sref = ChargeRequest
   { amount             = a
   , amounttype         = "unit"
   , channel            = "KENYA.SAFARICOM"
@@ -69,8 +65,6 @@ mkChargeRequest t a m d sref campId qs = ChargeRequest
   , requestType        = "charge"
   , target             = t
   , date               = d
-  , ouiSysCampaignId   = campId
-  , queryString        = qs
   }
 
 mkChargeRequest' ::
@@ -78,12 +72,10 @@ mkChargeRequest' ::
   -> Amount
   -> Msisdn
   -> ArbitraryReference
-  -> OuiSysCampaignId
-  -> [(Text, Text)]
   -> IO ChargeRequest
-mkChargeRequest' t a m sref campId qs = do
+mkChargeRequest' t a m sref = do
   d <- getCurrentTime
-  return $ mkChargeRequest t a m d sref campId qs
+  return $ mkChargeRequest t a m d sref
 
 -- | 'ChargeRequestState' is equivalent to the similar Enum type in 'tola' PotgreSQL database.
 data ChargeRequestState =

@@ -98,14 +98,14 @@ chargeRequestWeb = getAndHeadAccessOrigin "/api/charge/:msisdn/:amount/:arbitref
   msisdn' <- mkMsisdn . sanitizeMsisdn <$> param "msisdn"
   arbitref <- mkArbitraryReference <$> param "arbitref"
   mock <- fromMaybe MockSuccess . maybeRead <$> (param "mock" `rescue` const (return ""))
-  target' <- mkTarget <$> (param "target" `rescue` const (return "7772000")) -- (return "850702"))
+  target' <- mkTarget <$> (param "target" `rescue` const (return "777200")) -- (return "850702"))
   -- Unknown campaign is 2
   campaignId' <- mkOuiSysCampaignId . fromMaybe 2 . maybeRead <$> param "cid" `rescue` const (return "2") -- either (const $ fst Campaigns.unknownCampaignId) mkCampaignId . decryptSXCode <$> param "sxcode" `rescue` const (return $ snd Campaigns.unknownCampaignId)
   qs <- queryStringParams
 
   -- let target' = mkTarget "777200"
-  cr <- liftIO $ mkChargeRequest' target' amount' msisdn' arbitref campaignId' qs
-  cridKey <- insertChargeRequest cr
+  cr <- liftIO $ mkChargeRequest' target' amount' msisdn' arbitref
+  cridKey <- insertChargeRequest cr campaignId' qs
   let crid = fromIntegral $ fromSqlKey cridKey
   catch (
     makeChargeRequest (mkMockableChargeRequest mock cr) >>= \case
